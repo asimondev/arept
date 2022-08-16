@@ -3,15 +3,16 @@ from __future__ import absolute_import
 
 from .utils import file_created
 
-def print_template(name, out_dir):
-    t = Template(name=name, out_dir=out_dir)
+def print_template(name, out_dir, arept_args):
+    t = Template(name=name, out_dir=out_dir, arept_args=arept_args)
     t.print()
 
 
 class Template:
-    def __init__(self, name, out_dir):
+    def __init__(self, name, out_dir, arept_args):
         self.name = name
         self.out_dir = out_dir
+        self.arept_args = arept_args
         self.header = "\n-- Created by arept (see https://github.com/asimondev/arept)\n\n"
 
         self.templates = {
@@ -54,17 +55,28 @@ class Template:
         file_created(file_name)
 
     def print_process(self):
-        def_vars = """
-set echo on pagesi 100 linesi 256 trimsp on verify off
+        # Default positional parameters SID Serial# Instance_ID
+        (sid, ser, inst) = ("...", "...", "sys_context('userenv', 'instance')")
+        if len(self.arept_args) >= 1:
+            sid = self.arept_args[0]
+        if len(self.arept_args) >= 2:
+            ser = self.arept_args[1]
+        if len(self.arept_args) >= 3:
+            inst = self.arept_args[2]
+        def_vars = """set echo on pagesi 100 linesi 256 trimsp on verify off
 
--- Uncomment this block, if you want to pass parameters to this script.
--- define my_sid=&1
--- define my_ser=&2
+define my_sid=&1
+define my_ser=&2
+define my_inst=sys_context('userenv','instance')
+-- define my_inst=&3
+-- 
+-- Set my_inst to 1 for single instance databases.
 -- define my_inst=1
 
-define my_sid=...
-define my_ser=...
-define my_inst=1
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_sid=...
+-- define my_ser=...
+-- define my_inst=1 or sys_context('userenv','instance')
 """
 
         sel_stmt = """
@@ -75,12 +87,11 @@ from gv$session a, gv$process b
 where a.paddr = b.addr and a.con_id = b.con_id and a.inst_id = b.inst_id and 
 """
 
-        stmts_out = sel_stmt + """a.inst_id = 1 and a.sid = ... and a.serial# = ... 
+        stmts_out = sel_stmt + """  a.inst_id = %s and a.sid = %s and a.serial# = %s
 /
-"""
-        stmts_file = self.header + def_vars + sel_stmt + """  a.inst_id = &my_inst and        
-  a.sid = &my_sid and
-  a.serial# = &my_ser
+""" % (inst, sid, ser)
+        stmts_file = self.header + def_vars + sel_stmt + """  a.inst_id = &my_inst and 
+  a.sid = &my_sid and a.serial# = &my_ser
 /
 
 select a.instance_number, a.instance_name, a.host_name, a.status

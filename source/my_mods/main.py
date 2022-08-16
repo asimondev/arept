@@ -20,7 +20,7 @@ def start_arept():
         print(args)
 
     if args.template:
-        print_template(args.template, args.out_dir)
+        print_template(args.template, args.out_dir, args.arept_args)
         return
 
     db = Database(out_dir=args.out_dir,
@@ -46,6 +46,7 @@ def start_arept():
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
                   sql_format=args.awr_sql_format,
+                  arept_args=args.arept_args,
                   verbose=verbose)
 
     db.select_version()

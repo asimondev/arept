@@ -76,6 +76,8 @@ class Database:
             self.db_con += self.db_user + "/" + self.db_pwd
         if self.db_name:
             self.db_con += "@" + self.db_name
+        if self.db_user and self.db_user.lower() == "sys":
+            self.db_con += " as sysdba"
 
         self.obj_tables = obj_tables
         self.obj_indexes = obj_indexes

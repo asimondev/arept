@@ -51,7 +51,7 @@ def parse_args(arept_vers):
     parser.add_option("--end-snap-id", help="max. snapshot ID",
                       type=int)
     parser.add_option("-t", "--template",
-                      help="{osproc | my_sql_trace | ses_sql_trace | meta_table | sql_details | "
+                      help="{process | my_sql_trace | ses_sql_trace | meta_table | sql_details | "
                            "awr_sql_monintor | awr_sql_monitor_list | sql_monitor | sql_monitor_list |"
                            "sql_profile | awr_sql_profile | sql_baseline | "
                            "awr_baseline | hinted_baseline | "
@@ -88,7 +88,8 @@ def parse_args(arept_vers):
         sql_id=options.sql_id,
         sql_child=options.sql_child_number,
         sql_format=options.sql_format,
-        template=options.template
+        template=options.template,
+        arept_args=args
     )
     prog_args.check_args()
 
@@ -132,7 +133,8 @@ class ProgArgs:
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
-                 template=None
+                 template=None,
+                 arept_args=[]
                  ):
 
         self.config_file = config_file
@@ -181,6 +183,7 @@ class ProgArgs:
         self.sql_format = sql_format
 
         self.template = template
+        self.arept_args = arept_args
 
     def __str__(self):
         ret = "Class ProgArgs:\n"
@@ -234,6 +237,8 @@ class ProgArgs:
 
         if self.template:
             ret += "- template: %s\n" % self.template
+        if self.arept_args:
+            ret += "- args: %s\n" % self.arept_args
 
         return ret
 

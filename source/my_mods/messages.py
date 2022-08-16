@@ -32,8 +32,9 @@ SQL Plan Baseline:
                     baseline.
                     
 Others:
- - osproc           : Select background process ID (SPID) and other details for
-                      a database session.
+ - process [SID Serial# Instance_Number=1]
+    * Select background process ID (SPID) and other details for a 
+    database session.
  - meta_table       : Get table/index/constraint DDLs using DBMS_METADATA for 
                       a table.
  - get_awr_snap_ids : Get AWR snapshot interval IDs for specified time interval. 
