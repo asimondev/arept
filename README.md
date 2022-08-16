@@ -78,7 +78,7 @@ Use *--template-help* option to get short description of available SQL snippets
 If you don't provide any connection details, AREPT would try to use SQL*Plus with 
 the internal connection: `/ as sysdba`.
 
-If you provide *--pdb PDB_Name* only, then AREPT connects as internal and change 
+If you provide *--pdb PDB_Name* only, then AREPT connects as internal and changes 
 session to this PDB:
 ```
 connect / as sysdba
@@ -88,6 +88,15 @@ alter session set container=PDB_Name;
 ## AREPT Output Directory.
 
 Per default the created files will be placed into the `./arept_output` directory. You can use *--output-directory* to change this.
+
+## AREPT Templates.
+
+AREPT templates are generated in 2 ways:
+- SQL snippets displayed on the screen.
+- SQL file for SQL*Plus.
+
+Sometimes you have to modify the SQL statement or SQL files before running them. 
+For instance, you would have to insert your SID and SERIAL# etc. 
 
 ## AREPT by Examples
 
