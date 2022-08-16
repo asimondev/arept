@@ -11,6 +11,7 @@ from .views import print_view_ddl, ViewNotFound
 from .mat_views import print_mat_view_ddls, MatViewNotFound
 
 from .awr import print_awr_sql, AWRSQLNotFound
+from .shared_lib import print_sql, SQLNotFound
 
 
 class Database:
@@ -33,6 +34,9 @@ class Database:
                  begin_snap_id=None, end_snap_id=None,
                  awr_sql_ids=[],
                  awr_sql_format=None,
+                 sql_id = None,
+                 sql_child = None,
+                 sql_format = None,
                  verbose=False):
         self.begin_time = begin_time
         self.end_time = end_time
@@ -40,6 +44,10 @@ class Database:
         self.end_snap_id = end_snap_id
         self.awr_sql_ids = awr_sql_ids
         self.awr_sql_format = awr_sql_format
+
+        self.sql_id = sql_id
+        self.sql_child = sql_child
+        self.sql_format = sql_format
 
         self.verbose = verbose
 
@@ -598,3 +606,30 @@ end;
         print("Error: snapshot interval IDs check failed in SQL*Plus output>>>")
         print(out)
         sys.exit(1)
+
+    def sql_report(self):
+        params = {
+            'db_con': self.db_con,
+            'pdb': self.pdb,
+            'dbid': self.dbid,
+            'is_dba': self.is_dba,
+            'is_rac': self.is_rac,
+            'inst_id': self.inst_id,
+            'inst_name': self.inst_name,
+            'rac_inst_ids': self.rac_inst_ids,
+            'version': self.version,
+            'out_dir': self.out_dir,
+            'out_level': self.out_level,
+            'out_format': self.out_format,
+            'sql_format': self.sql_format,
+            'version': self.major_version
+        }
+
+        try:
+            print_sql(sql_id=self.sql_id,
+                      sql_child=self.sql_child,
+                      params=params,
+                      verbose=self.verbose)
+
+        except SQLNotFound as ex:
+            print(ex)

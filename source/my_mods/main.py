@@ -1,5 +1,6 @@
 from .parse import parse_args
 from .database import Database
+from .templates import print_template
 
 AREPT_VERSION = "0.0.1"
 
@@ -17,6 +18,10 @@ def start_arept():
 
     if verbose:
         print(args)
+
+    if args.template:
+        print_template(args.template, args.out_dir)
+        return
 
     db = Database(out_dir=args.out_dir,
                   out_level=args.out_level,
@@ -38,6 +43,9 @@ def start_arept():
                   end_snap_id=args.end_snap_id,
                   awr_sql_ids=args.awr_sql_ids,
                   awr_sql_format=args.awr_sql_format,
+                  sql_id=args.sql_id,
+                  sql_child=args.sql_child,
+                  sql_format=args.awr_sql_format,
                   verbose=verbose)
 
     db.select_version()
@@ -53,6 +61,9 @@ def start_arept():
 
         db.select_awr_rac_instances(begin_id, end_id)
         db.awr_sql_reports(begin_id, end_id)
+
+    if db.sql_id:
+        db.sql_report()
 
     if db.obj_tables:
         db.table_ddls()

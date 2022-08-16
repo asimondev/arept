@@ -10,6 +10,9 @@ import sys
 
 from time import strftime
 
+from .messages import  print_templates_help
+from .utils import str_to_int
+
 
 def parse_args(arept_vers):
     parser = optparse.OptionParser(version="%prog " + arept_vers)
@@ -32,10 +35,13 @@ def parse_args(arept_vers):
                       help="begin time. Format: {yyyy-mm-dd hh24:mi | yyyy-mm-dd | hh24:mi}")
     parser.add_option("-e", "--end-time",
                       help="end time. Format: {yyyy-mm-dd hh24:mi | yyyy-mm-dd | hh24:mi | now}")
-    parser.add_option("--awr-sql", help="SQL_IDs in AWR")
-    parser.add_option("--awr_sql_format", help="Additional AWR SQL format options.")
+    parser.add_option("--awr-sql-id", help="SQL_IDs in AWR")
+    parser.add_option("--awr-sql-format", help="Additional AWR SQL format options.")
     parser.add_option("--parallel", help="Number of parallel AWR/ADDM reports",
                       type=int)
+    parser.add_option("--sql-id", help="Cursor SQL_ID in shared library")
+    parser.add_option("--sql-child-number", help="Cursor child nuber in shared library")
+    parser.add_option("--sql-format", help="Additional SQL format options")
     parser.add_option("--cleanup", help='"rm -rf *" for existing output directory',
                       action="store_true", default=False)
     parser.add_option("-v", "--verbose", help="verbose",
@@ -44,8 +50,20 @@ def parse_args(arept_vers):
                       type=int)
     parser.add_option("--end-snap-id", help="max. snapshot ID",
                       type=int)
+    parser.add_option("-t", "--template",
+                      help="{osproc | my_sql_trace | ses_sql_trace | meta_table | sql_details | "
+                           "awr_sql_monintor | awr_sql_monitor_list | sql_monitor | sql_monitor_list |"
+                           "sql_profile | awr_sql_profile | sql_baseline | "
+                           "awr_baseline | hinted_baseline | "
+                           "get_awr_snap_ids | hidden_parameters | get_sql_id }")
+    parser.add_option("--template-help", help="Show description of AREPT templates.",
+                        default=False, action="store_true")
 
     (options, args) = parser.parse_args()
+
+    if options.template_help:
+        print_templates_help()
+
     prog_args = ProgArgs(
         config_file=options.config,
         db_user=options.user,
@@ -62,11 +80,15 @@ def parse_args(arept_vers):
         output_level=options.output_level,
         parallel=options.parallel,
         cleanup=options.cleanup,
-        obj = options.obj,
-        obj_file = options.obj_file,
-        schema = options.schema,
-        awr_sql=options.awr_sql,
-        awr_sql_format=options.awr_sql_format
+        obj=options.obj,
+        obj_file=options.obj_file,
+        schema=options.schema,
+        awr_sql=options.awr_sql_id,
+        awr_sql_format=options.awr_sql_format,
+        sql_id=options.sql_id,
+        sql_child=options.sql_child_number,
+        sql_format=options.sql_format,
+        template=options.template
     )
     prog_args.check_args()
 
@@ -90,23 +112,29 @@ def os_exit(out):
 
 class ProgArgs:
     def __init__(self,
-            config_file = None,
-            db_user = None,
-            db_pwd = None,
-            db_name = None,
-            pdb = None,
-            begin_time=None, end_time=None,
-            begin_snap_id=None, end_snap_id=None,
-            out_dir=None, is_verbose=None,
-            output_format=None,
-            output_level=None,
-            parallel=None,
-            cleanup=None,
-            obj=None,
-            obj_file = None,
-            schema = None,
-            awr_sql = None,
-            awr_sql_format = None):
+                 config_file=None,
+                 db_user=None,
+                 db_pwd=None,
+                 db_name=None,
+                 pdb=None,
+                 begin_time=None, end_time=None,
+                 begin_snap_id=None, end_snap_id=None,
+                 out_dir=None, is_verbose=None,
+                 output_format=None,
+                 output_level=None,
+                 parallel=None,
+                 cleanup=None,
+                 obj=None,
+                 obj_file=None,
+                 schema=None,
+                 awr_sql=None,
+                 awr_sql_format=None,
+                 sql_id=None,
+                 sql_child=None,
+                 sql_format=None,
+                 template=None
+                 ):
+
         self.config_file = config_file
         self.db_user = db_user
         self.db_pwd = db_pwd
@@ -148,6 +176,12 @@ class ProgArgs:
         self.awr_sql_ids = []
         self.awr_sql_format = awr_sql_format
 
+        self.sql_id = sql_id
+        self.sql_child = sql_child
+        self.sql_format = sql_format
+
+        self.template = template
+
     def __str__(self):
         ret = "Class ProgArgs:\n"
         if self.config_file:
@@ -174,6 +208,13 @@ class ProgArgs:
         if self.awr_sql_format:
             ret += "- AWR SQL format: %s\n" % self.awr_sql_format
 
+        if self.sql_id:
+            ret += " - SQL_ID: %s\n" % self.sql_id
+        if self.sql_child:
+            ret += " - SQL child number: %d\n" % self.sql_child
+        if self.awr_sql_format:
+            ret += " - SQL format: %s\n" % self.awr_sql_format
+
         if self.out_dir:
             ret += "- out_dir: %s\n" % self.out_dir
         if self.verbose:
@@ -191,6 +232,9 @@ class ProgArgs:
         if self.schema:
             ret += "- schema: %s\n" % self.schema
 
+        if self.template:
+            ret += "- template: %s\n" % self.template
+
         return ret
 
     def check_args(self):
@@ -207,11 +251,17 @@ class ProgArgs:
         self.check_objects()
         self.check_schema()
         self.check_awr()
+        self.check_sql()
+        self.check_template()
 
     def check_awr(self):
         self.awr_sql_ids = self.check_awr_sql_ids()
         if len(self.awr_sql_ids):
             self.check_awr_interval()
+
+    def check_sql(self):
+        self.sql_child = str_to_int(self.sql_child,
+                                    "Error: SQL child number %s must be a number.")
 
     def check_awr_sql_ids(self):
         if self.awr_sql:
@@ -342,7 +392,7 @@ class ProgArgs:
         lst = self.obj.split(";")
         for a in lst:
             pos = a.find(":")
-            if pos == -1 and len(self.obj_tables) == 0:   # default objects are tables
+            if pos == -1 and len(self.obj_tables) == 0:  # default objects are tables
                 self.obj_tables = a.split(",")
                 if len(self.obj_tables) == 0:
                     print("Error: wrong table names in obj parameter: %s" % self.obj)
@@ -350,12 +400,12 @@ class ProgArgs:
             else:
                 obj_type = a[:pos]
                 if obj_type.lower() == "table" and len(self.obj_tables) == 0:
-                    self.obj_tables = a[pos+1:].split(",")
+                    self.obj_tables = a[pos + 1:].split(",")
                     if len(self.obj_tables) == 0:
                         print("Error: wrong table names in obj parameter: %s" % self.obj)
                         sys.exit(1)
                 elif obj_type.lower() == "index_only":
-                    self.obj_indexes = a[pos+1:].split(",")
+                    self.obj_indexes = a[pos + 1:].split(",")
                     if len(self.obj_indexes) == 0:
                         print("Error: wrong index_only names in obj parameter: %s" % self.obj)
                         sys.exit(1)
@@ -365,12 +415,12 @@ class ProgArgs:
                         print("Error: wrong index names in obj parameter: %s" % self.obj)
                         sys.exit(1)
                 elif obj_type.lower() == "view":
-                    self.obj_views = a[pos+1:].split(",")
+                    self.obj_views = a[pos + 1:].split(",")
                     if len(self.obj_views) == 0:
                         print("Error: wrong view names in obj parameter: %s" % self.obj)
                         sys.exit(1)
                 elif obj_type.lower() == "mview":
-                    self.obj_mat_views = a[pos+1:].split(",")
+                    self.obj_mat_views = a[pos + 1:].split(",")
                     if len(self.obj_mat_views) == 0:
                         print("Error: wrong mat. view names in obj parameter: %s" % self.obj)
                         sys.exit(1)
@@ -379,6 +429,19 @@ class ProgArgs:
         if (self.schema is not None and (self.obj is None and
                                          self.obj_file is None)):
             print("Error: schema parameter must be used with object parameters.")
+            sys.exit(1)
+
+    def check_template(self):
+        if self.template is None:
+            return
+
+        templates = ['process', 'my_sql_trace', 'ses_sql_trace', 'meta_table', "sql_details",
+                     'awr_sql_monitor', 'awr_sql_monitor_list',
+                     'sql_monitor', 'sql_monitor_list', 'sql_profile', 'awr_sql_profile',
+                     'get_awr_snap_ids', 'hidden_parameters', 'sql_baseline', 'awr_baseline',
+                     'hinted_baseline', 'get_sql_id']
+        if self.template not in templates:
+            print('Error: unknown template value "%s".' % self.template)
             sys.exit(1)
 
     def read_json(self):
@@ -423,6 +486,20 @@ class ProgArgs:
         if (self.obj_file is None and 'obj-file' in data and
                 data['obj-file'] is not None):
             self.obj_file = data['obj_file']
+
+        if (self.sql_id is None and 'sql_id' in data and
+                data['sql_id'] is not None):
+            self.sql_id = data['sql_id']
+        if (self.sql_child is None and 'sql-child' in data and
+                data['sql-child'] is not None):
+            self.sql_child = data['sql-child']
+        if (self.sql_format is None and 'sql-format' in data and
+                data['sql-format'] is not None):
+            self.sql_format = data['sql-format']
+
+        if (self.template is None and 'template' in data and
+                data['template'] is not None):
+            self.template = data['template']
 
 
 class TimeStamp:

@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 from .sqlplus import SqlPlus
-
+from .utils import file_created, desc_stmt
 
 class AWRSQLNotFound(Exception): pass
 
@@ -25,6 +25,8 @@ def print_awr_sql(sql_id=None, begin_id=None, end_id=None,
             sql.print_text_report(params['inst_id'])
         if "html" in params['out_format']:
             sql.print_html_report(params['inst_id'])
+
+    sql.get_mon_list()
 
 
 class AWRSQL:
@@ -79,7 +81,7 @@ class AWRSQL:
         return ret
 
     def print_text_report(self, inst_id):
-        file_name = "awr_sqlid_%s_inst_%s_report.txt" % (self.sql_id, inst_id)
+        file_name = "awr_sql_id_%s_inst_%s_report.txt" % (self.sql_id, inst_id)
         stmts = """set echo on pagesi 1000 linesi 256 trimsp on long 50000 longchunk 1000
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
@@ -95,11 +97,12 @@ spool off
        self.params['dbid'], inst_id)
 
         sql = SqlPlus(con=self.params['db_con'],
+                      pdb=self.params['pdb'],
                       stmts=stmts,
                       out_dir=self.params['out_dir'],
                       verbose=self.verbose)
         out = sql.run(silent=False, do_exit=False)
-        print("File %s created." % file_name)
+        file_created(file_name)
         if self.verbose:
             for line in out:
                 print(line)
@@ -114,7 +117,7 @@ spool off
         # return ret
 
     def print_html_report(self, inst_id):
-        file_name = "awr_sqlid_%s_inst_%s_report.html" % (self.sql_id, inst_id)
+        file_name = "awr_sql_id_%s_inst_%s_report.html" % (self.sql_id, inst_id)
         stmts = """set echo off feedback off verify off termout on; 
 set pagesi 0 linesi 8000 trimsp on long 50000 longchunk 1000;
 set heading off 
@@ -129,11 +132,62 @@ spool off
        self.params['dbid'], inst_id)
 
         sql = SqlPlus(con=self.params['db_con'],
+                      pdb=self.params['pdb'],
                       stmts=stmts,
                       out_dir=self.params['out_dir'],
                       verbose=self.verbose)
         out = sql.run(silent=True, do_exit=False)
-        print("File %s created." % file_name)
+        file_created(file_name)
         if self.verbose:
             for line in out:
                 print(line)
+
+    def get_mon_list(self):
+        for fmt in self.params['out_format']:
+            name = "awr_sql_id_%s_hist_reports" % self.sql_id
+            if fmt == "text":
+                file_name = name + ".txt"
+                fmt_stmts = """
+set pagesi 100 linesi 256 trimsp on long 50000 echo on
+"""
+            else:
+                file_name = name + ".html"
+                fmt_stmts = """
+set pagesi 100 linesi 256 trimsp on echo on
+set markup html on spool on 
+"""
+
+            stmts = """
+spool %s/%s
+
+alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
+alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
+
+%s 
+
+select report_id rid, key1, key2, period_start_time, period_end_time 
+from dba_hist_reports 
+where key1 = '%s' and component_name = 'sqlmonitor' and snap_id between %s and %s 
+order by period_start_time
+/
+
+select * from dba_hist_reports where key1 = '%s' and component_name = 'sqlmonitor' 
+and snap_id between %s and %s order by period_start_time
+/
+
+spool off
+""" % (self.params['out_dir'], file_name,
+       desc_stmt("dba_hist_reports"),
+       self.sql_id, self.begin_id, self.end_id,
+       self.sql_id, self.begin_id, self.end_id)
+
+            sql = SqlPlus(con=self.params['db_con'],
+                          pdb=self.params['pdb'],
+                          stmts=fmt_stmts + stmts,
+                          out_dir=self.params['out_dir'],
+                          verbose=self.verbose)
+            out = sql.run(silent=True)
+            file_created(file_name)
+            if self.verbose:
+                for line in out:
+                    print(line)

@@ -224,6 +224,18 @@ from %s_triggers
 where owner = '%s' and table_name = '%s'
 /
 
+select round(sum(bytes)/(1024*1024), 0) mb from dba_segments 
+where owner = '%s' and segment_name = '%s' and segment_type = 'TABLE'
+/
+
+select round(sum(bytes)/(1024*1024), 0) mb from dba_segments 
+where owner = '%s' and segment_name = '%s' and segment_type = 'TABLE PARTITION'
+/
+
+select count(*) from dba_segments 
+where owner = '%s' and segment_name = '%s' and segment_type = 'TABLE PARTITION'
+/
+
 spool off
 """ % (self.params['out_dir'], file_name,
        select_object(owner, table, 'TABLE', self.tab_prefix),
@@ -232,7 +244,8 @@ spool off
        desc_stmt("%s_tab_cols" % self.tab_prefix),
        self.tab_prefix, owner, table,
        desc_stmt("%s_triggers" % self.tab_prefix),
-       self.tab_prefix, owner, table)
+       self.tab_prefix, owner, table,
+       owner, table, owner, table, owner, table)
 
             sql = SqlPlus(con=self.params['db_con'],
                           pdb=self.params['pdb'],
@@ -586,13 +599,14 @@ spool off
 
     def get_table_subpart_stats(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "table_%s_%s_subpart_stats" % (owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s_subpart_stats.txt" % (owner, table)
+                file_name = name + ".txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s_subpart_stats.html" % (owner, table)
+                file_name = name + ".html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on echo on
 set markup html on spool on 

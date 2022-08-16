@@ -1,6 +1,8 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
+import sys
+
 
 def desc_stmt(table, owner=None, size_before=80, size_after=256):
     tab_owner = owner + "." if owner else ""
@@ -30,3 +32,17 @@ from %s_objects where owner = '%s' and object_name = '%s' and
 """ % (tab_prefix, obj_owner, obj_name, obj_type)
 
     return ret
+
+
+def str_to_int(s, msg, do_exit=True):
+    if s is None:
+        return None
+
+    try:
+        return int(s)
+    except ValueError:
+        print(msg % s)
+        if do_exit:
+            sys.exit(1)
+        else:
+            return None
