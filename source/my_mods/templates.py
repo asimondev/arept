@@ -131,11 +131,9 @@ where a.sql_text like '&my_sql_text'
         stmts = """
 set echo on pagesi 100 linesi 256 trimsp on
 
-alter session set tracefile_identifier=arept;
+spool arept_my_sql_trace.log
 
--- alter session set sql_trace=true;
-
-exec dbms_session.session_trace_enable(waits=>true, binds=>false, plan_stat=>null);
+alter session set tracefile_identifier=arept_ses_trace;
 
 select a.sid, a.serial# ser, b.spid,
   a.con_id, a.username db_user, a.machine,
@@ -149,8 +147,14 @@ select a.instance_number, a.instance_name, a.host_name, a.status
 from v$instance a
 /
 
+-- alter session set sql_trace=true;
+
+exec dbms_session.session_trace_enable(waits=>true, binds=>false, plan_stat=>null);
+
+spool off 
+
 -- Run this command to finish the trace or disconnect the session.
--- exec dbms_session.session_trace_disable; 
+-- exec dbms_session.session_trace_disable;
 """
 
         stmts_out = stmts
@@ -160,20 +164,26 @@ from v$instance a
         self.write_file("my_sql_trace", stmts_file)
 
     def print_ses_sql_trace(self):
+        # Default positional parameters SID Serial# Instance_ID
+        (sid, ser) = ("...", "...")
+        if len(self.arept_args) >= 1:
+            sid = self.arept_args[0]
+        if len(self.arept_args) >= 2:
+            ser = self.arept_args[1]
+
         def_vars = """
+define my_sid=&1
+define my_ser=&2
 
--- Uncomment this block, if you want to pass parameters to this script.
--- define my_sid=&1
--- define my_ser=&2
-
-define my_sid=...
-define my_ser=...
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_sid=...
+-- define my_ser=...
 """
 
         stmts = """        
 set echo on pagesi 100 linesi 256 trimsp on verify on
 
-spool ses_sql_trace.log
+spool arept_ses_sql_trace.log
 
 select a.sid, a.serial# ser, b.spid,
   a.con_id, a.username db_user, a.machine,
@@ -189,12 +199,17 @@ from v$instance a
     
 exec dbms_monitor.session_trace_enable(session_id=>%s, serial_num=>%s, waits=>true, binds=>false, plan_stat=>null);
 
+spool off 
+
 -- Run this command to finish the trace or disconnect the session.
 -- exec dbms_monitor.session_trace_disable(session_id=>%s, serial_num=>%s);
-define my_sid
-define my_ser
 
-spool off 
+"""
+
+        stmts_out = stmts % (sid, ser, sid, ser, sid, ser)
+        stmts_file = self.header + def_vars + stmts % ("&my_sid", "&my_ser",
+                                            "&my_sid", "&my_ser",
+                                            "&my_sid", "&my_ser") + """
 
 -- Getting SQL trace using ORADEBUG:
 -- oradebug setospid ...
@@ -202,13 +217,7 @@ spool off
 -- oradebug tracefile_name
 -- ...
 -- oradebug event 10046 trace name context off
-
 """
-
-        stmts_out = stmts % ("...", "...", "...", "...", "...", "...")
-        stmts_file = self.header + def_vars + stmts % ("&my_sid", "&my_ser",
-                                            "&my_sid", "&my_ser",
-                                            "&my_sid", "&my_ser")
 
         print(stmts_out)
         self.write_file("ses_sql_trace", stmts_file)

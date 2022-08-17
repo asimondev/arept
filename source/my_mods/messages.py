@@ -6,7 +6,8 @@ def print_templates_help():
     text = """Available AREPT templates:
 SQL Trace:
  - my_sql_trace : Activate SQL tracing for the current session. 
- - ses_sql_trace: Activate SQL tracing for other session.
+ - ses_sql_trace [SID Serial#]
+    * Activate SQL tracing for other session.
  
 SQL Statement details:
  - sql_details: Get DBMS_SQLTUNE.REPORT_SQL_DETAIL() output for SQL statement.

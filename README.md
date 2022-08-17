@@ -209,3 +209,111 @@ That's why two different scripts will be generated:
  - File /home/oracle/arept/arept_output/awr_get_sql_profile.sql created.
 ```
 
+### Enable SQL Trace.
+
+You can get AREPT templates for enable SQL trace both in the own session 
+and in the remote session:
+- Enabling SQL trace in the own session.
+
+```
+./arept.py -t my_sql_trace
+
+set echo on pagesi 100 linesi 256 trimsp on
+
+spool arept_my_sql_trace.log
+
+alter session set tracefile_identifier=arept_ses_trace;
+
+select a.sid, a.serial# ser, b.spid,
+  a.con_id, a.username db_user, a.machine,
+  b.program, b.tracefile, b.traceid
+from v$session a, v$process b
+where a.paddr = b.addr and a.con_id = b.con_id and 
+  a.sid = sys_context('userenv', 'sid')
+/
+
+select a.instance_number, a.instance_name, a.host_name, a.status
+from v$instance a
+/
+
+-- alter session set sql_trace=true;
+
+exec dbms_session.session_trace_enable(waits=>true, binds=>false, plan_stat=>null);
+
+spool off 
+
+-- Run this command to finish the trace or disconnect the session.
+-- exec dbms_session.session_trace_disable;
+
+ - File /home/oracle/arept/arept_output/my_sql_trace.sql created.
+```
+
+- Enabling SQL trace in the remote session.
+```
+./arept.py -t ses_sql_trace    
+        
+set echo on pagesi 100 linesi 256 trimsp on verify on
+
+spool arept_ses_sql_trace.log
+
+select a.sid, a.serial# ser, b.spid,
+  a.con_id, a.username db_user, a.machine,
+  b.program, b.tracefile, b.traceid
+from v$session a, v$process b
+where a.paddr = b.addr and a.con_id = b.con_id and 
+  a.sid = ... and a.serial# = ...
+/
+
+select a.instance_number, a.instance_name, a.host_name, a.status
+from v$instance a
+/
+    
+exec dbms_monitor.session_trace_enable(session_id=>..., serial_num=>..., waits=>true, binds=>false, plan_stat=>null);
+
+spool off 
+
+-- Run this command to finish the trace or disconnect the session.
+-- exec dbms_monitor.session_trace_disable(session_id=>..., serial_num=>...);
+
+
+ - File /home/oracle/arept/arept_output/ses_sql_trace.sql created.
+```
+You have to start the created SQL file *ses_sql_trace.sql* from SQL*Plus and provide
+as script parameters SID and Serial# for the specific session on the same instance:
+
+`SQL> @ses_sql_trace 497 55509`
+
+- Enabling SQL trace in the remote session using SID and Serial#. In this case the
+displayed output will contain SQL statements using the provided SID and Serial#. You 
+could use these statements to start the SQL trace without making any changes.
+(Copy and Paste.)
+
+```
+ ./arept.py -t ses_sql_trace 497 55509
+        
+set echo on pagesi 100 linesi 256 trimsp on verify on
+
+spool arept_ses_sql_trace.log
+
+select a.sid, a.serial# ser, b.spid,
+  a.con_id, a.username db_user, a.machine,
+  b.program, b.tracefile, b.traceid
+from v$session a, v$process b
+where a.paddr = b.addr and a.con_id = b.con_id and 
+  a.sid = 497 and a.serial# = 55509
+/
+
+select a.instance_number, a.instance_name, a.host_name, a.status
+from v$instance a
+/
+    
+exec dbms_monitor.session_trace_enable(session_id=>497, serial_num=>55509, waits=>true, binds=>false, plan_stat=>null);
+
+spool off 
+
+-- Run this command to finish the trace or disconnect the session.
+-- exec dbms_monitor.session_trace_disable(session_id=>497, serial_num=>55509);
+
+
+ - File /home/oracle/arept/arept_output/ses_sql_trace.sql created.
+```
