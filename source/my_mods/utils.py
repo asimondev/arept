@@ -46,3 +46,7 @@ def str_to_int(s, msg, do_exit=True):
             sys.exit(1)
         else:
             return None
+
+
+def date_to_str(s):
+    return s.replace(" ", "_").replace(":", "-")

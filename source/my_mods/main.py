@@ -43,6 +43,12 @@ def start_arept():
                   end_snap_id=args.end_snap_id,
                   awr_sql_ids=args.awr_sql_ids,
                   awr_sql_format=args.awr_sql_format,
+                  parallel=args.parallel,
+                  awr_report=args.awr_report,
+                  awr_summary=args.awr_summary,
+                  addm_report=args.addm_report,
+                  ash_report=args.ash_report,
+                  global_ash_report=args.global_ash_report,
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
                   sql_format=args.awr_sql_format,
@@ -57,11 +63,8 @@ def start_arept():
 
     print("Output directory: %s" % db.out_dir)
 
-    if db.awr_sql_ids:
-        (begin_id, end_id) = db.get_awr_interval_ids()
-
-        db.select_awr_rac_instances(begin_id, end_id)
-        db.awr_sql_reports(begin_id, end_id)
+    db.awr_objects()
+    db.ash_reports()
 
     if db.sql_id:
         db.sql_report()

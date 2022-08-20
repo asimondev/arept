@@ -11,6 +11,9 @@ from .views import print_view_ddl, ViewNotFound
 from .mat_views import print_mat_view_ddls, MatViewNotFound
 
 from .awr import print_awr_sql, AWRSQLNotFound
+from .awr_report import generate_awr_reports
+from .addm_report import generate_addm_reports
+from .ash_report import generate_ash_report
 from .shared_lib import print_sql, SQLNotFound
 
 
@@ -34,9 +37,16 @@ class Database:
                  begin_snap_id=None, end_snap_id=None,
                  awr_sql_ids=[],
                  awr_sql_format=None,
+                 awr_report=False,
+                 awr_summary=False,
+                 addm_report=False,
+                 parallel=None,
+                 ash_report=False,
+                 global_ash_report=False,
                  sql_id = None,
                  sql_child = None,
                  sql_format = None,
+                 arept_args = [],
                  verbose=False):
         self.begin_time = begin_time
         self.end_time = end_time
@@ -45,9 +55,20 @@ class Database:
         self.awr_sql_ids = awr_sql_ids
         self.awr_sql_format = awr_sql_format
 
+        self.parallel = parallel
+        self.awr_report = awr_report
+        self.awr_summary = awr_summary
+        self.addm_report = addm_report
+        self.ash_report = ash_report
+        self.global_ash_report = global_ash_report
+
+        self.in_inst_ids = None
+
         self.sql_id = sql_id
         self.sql_child = sql_child
         self.sql_format = sql_format
+
+        self.arept_args = arept_args
 
         self.verbose = verbose
 
@@ -135,6 +156,11 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
             ret += "- Container name: %s\n" % self.con_name
         if self.ses_user is not None:
             ret += "- Session user: %s\n" % self.ses_user
+
+        ret += "- AWR report: %s\n" % self.awr_report
+        ret += "- AWR summary report: %s\n" % self.awr_summary
+        ret += "- ADDM report: %s\n" % self.addm_report
+        ret += "- ASH report: %s\n" % self.ash_report
 
         if self.out_dir:
             ret += "- out_dir: %s\n" % self.out_dir
@@ -635,3 +661,131 @@ end;
 
         except SQLNotFound as ex:
             print(ex)
+
+    def get_awr_report(self, begin_id, end_id, awr_summary, snap_ids):
+        params = {
+            'db_con': self.db_con,
+            'pdb': self.pdb,
+            'dbid': self.dbid,
+            'is_dba': self.is_dba,
+            'is_rac': self.is_rac,
+            'inst_id': self.inst_id,
+            'inst_name': self.inst_name,
+            'rac_inst_ids': self.rac_inst_ids,
+            'version': self.version,
+            'out_dir': self.out_dir,
+            'out_level': self.out_level,
+            'out_format': self.out_format,
+            'parallel': self.parallel
+        }
+
+        generate_awr_reports(begin_id, end_id, awr_summary,
+                             snap_ids, params, self.verbose)
+
+    def get_addm_report(self, begin_id, end_id, snap_ids):
+        params = {
+            'db_con': self.db_con,
+            'pdb': self.pdb,
+            'dbid': self.dbid,
+            'is_dba': self.is_dba,
+            'is_rac': self.is_rac,
+            'inst_id': self.inst_id,
+            'inst_name': self.inst_name,
+            'rac_inst_ids': self.rac_inst_ids,
+            'version': self.version,
+            'out_dir': self.out_dir,
+            'out_level': self.out_level,
+            'out_format': self.out_format,
+            'parallel': self.parallel
+        }
+
+        generate_addm_reports(begin_id, end_id, snap_ids, params, self.verbose)
+
+    @staticmethod
+    def read_snap_ids(out):
+        res = dict()
+        pattern = re.compile(r'SNAP_ID:([\d]+:\d+:.*):\Z')
+        for line in out:
+            matchobj = pattern.search(line)
+            if matchobj:
+                (snap_id_str, snap, inst, end_date, others) = line.split(':')
+                if inst in res:
+                    res[inst].append((snap, end_date))
+                else:
+                    res[inst] = [(snap, end_date)]
+
+        return res
+
+    def select_awr_report_snap_ids(self, begin_snap_id, end_snap_id):
+        stmts = """set pagesi 0 linesi 255 trimsp on heading on
+        
+select 'SNAP_ID' || ':' || snap_id || ':' || 
+  instance_number || ':' || to_char(end_interval_time, 
+  'yyyy-mm-dd_hh24-mi-ss') || ':'  
+from dba_hist_snapshot 
+where dbid = %s and snap_id between %s and %s and 
+  instance_number in %s
+order by instance_number, snap_id
+/
+
+""" % (self.dbid, begin_snap_id, end_snap_id, self.in_inst_ids)
+        sql = SqlPlus(con=self.db_con,
+                      stmts=stmts,
+                      out_dir=self.out_dir,
+                      verbose=self.verbose)
+        out = sql.run(silent=False)
+        return self.read_snap_ids(out)
+
+    def set_in_instance_ids(self):
+        if self.is_rac:
+            in_inst_ids = "(" + ','.join(self.rac_inst_ids) + ")"
+        else:
+            in_inst_ids = "(" + self.inst_id + ")"
+
+        self.in_inst_ids = in_inst_ids
+
+    def awr_objects(self):
+        if (self.awr_sql_ids or self.awr_report or
+                self.awr_summary or self.addm_report):
+            (begin_id, end_id) = self.get_awr_interval_ids()
+
+            self.select_awr_rac_instances(begin_id, end_id)
+            self.set_in_instance_ids()
+
+            if self.awr_sql_ids:
+                self.awr_sql_reports(begin_id, end_id)
+
+            if self.awr_report or self.awr_summary or self.addm_report:
+                snap_ids = self.select_awr_report_snap_ids(begin_id, end_id)
+                if self.awr_report or self.awr_summary:
+                    self.get_awr_report(begin_id, end_id,
+                                    self.awr_summary, snap_ids)
+                elif self.addm_report:
+                    self.get_addm_report(begin_id, end_id, snap_ids)
+
+    def ash_reports(self):
+        if self.ash_report:
+            self.get_ash_report(False)
+
+        if self.global_ash_report:
+            self.get_ash_report(True)
+
+    def get_ash_report(self, global_ash_report):
+        params = {
+            'db_con': self.db_con,
+            'pdb': self.pdb,
+            'dbid': self.dbid,
+            'is_dba': self.is_dba,
+            'is_rac': self.is_rac,
+            'inst_id': self.inst_id,
+            'inst_name': self.inst_name,
+            'rac_inst_ids': self.rac_inst_ids,
+            'version': self.version,
+            'out_dir': self.out_dir,
+            'out_level': self.out_level,
+            'out_format': self.out_format,
+            'parallel': self.parallel
+        }
+
+        generate_ash_report(self.begin_time, self.end_time, params,
+                             self.verbose, global_ash_report)

@@ -20,6 +20,7 @@ class Template:
             'my_sql_trace': self.print_my_sql_trace,
             'ses_sql_trace': self.print_ses_sql_trace,
             'meta_table': self.print_meta_table,
+            'meta_role': self.print_meta_role,
             'sql_details': self.sql_details,
             'awr_sql_monitor': self.awr_sql_monitor,
             'awr_sql_monitor_list': self.awr_sql_monitor_list,
@@ -32,7 +33,8 @@ class Template:
             'sql_baseline': self.sql_plan_baseline,
             'awr_baseline': self.awr_sql_plan_baseline,
             'hinted_baseline': self.hinted_sql_plan_baseline,
-            'get_sql_id': self.get_sql_id
+            'get_sql_id': self.get_sql_id,
+            'sql_shared_cursor': self.get_sql_shared_cursor
         }
 
     def __str__(self):
@@ -1115,4 +1117,196 @@ where b.created > sysdate - 1/24
 order by created 
 /
 """
+        return stmts
+
+    def print_meta_role(self):
+        # Default positional parameter: Role
+        if len(self.arept_args) >= 1:
+            role = self.arept_args[0]
+            spool_file = "role_grants_%s.log" % role
+        else:
+            role = "..."
+            spool_file = "role_grants.log"
+
+        def_vars = """
+define my_role=&1
+
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_owner=...
+"""
+
+        stmts = """      
+set echo on verify off 
+set pagesi 1000 linesi 512 trimsp on
+set long 100000 longhc 10000
+
+exec dbms_metadata.set_transform_param(dbms_metadata.session_transform, 'PRETTY', TRUE);
+exec dbms_metadata.set_transform_param(dbms_metadata.session_transform, 'SQLTERMINATOR', TRUE);
+
+spool %s
+
+SELECT dbms_metadata.get_ddl('ROLE', upper('%s')) from dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('SYSTEM_GRANT', upper('%s')) from dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('OBJECT_GRANT', upper('%s')) from dual;
+SELECT DBMS_METADATA.GET_GRANTED_DDL('ROLE_GRANT',upper('%s')) from dual;
+
+spool off     
+"""
+
+        stmts_out = stmts % (spool_file, role, role, role, role)
+        stmts_file = self.header + def_vars + stmts % (spool_file, "&my_role",
+                    "&my_role", "&my_role", "&my_role")
+
+        print(stmts_out)
+        self.write_file("meta_role", stmts_file)
+
+    def get_sql_shared_cursor(self):
+        def_vars = """set echo off pagesi 100 linesi 256 trimsp on verify off
+set serveroutput on
+
+-- Usage: @sql_shared_cursor SQL_ID [Instance_ID]
+
+define my_sql_id=&1
+-- Use my_inst in PL/SQL block and my_inst_select for SELECT statements.
+define my_inst="sys_context(''userenv'',''instance'')"
+define my_inst_select="sys_context('userenv','instance')"
+-- Use my_inst in PL/SQL block and my_inst_select for SELECT statements.
+--
+-- define my_inst=&2
+-- define my_inst=NULL -- for all instances
+-- 
+-- Set my_inst to 1 for single instance databases.
+-- define my_inst=1
+
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_sql_id=...
+-- define my_inst=1 or sys_context('userenv','instance') or NULL
+"""
+
+        stmt = ("select a.* from gv$sql_shared_cursor a " +
+                   "where a.inst_id = decode(&my_inst, NULL, a.inst_id, " +
+                    "&my_inst) and a.sql_id = ''&my_sql_id'' " +
+                    "order by inst_id, con_id, child_number")
+
+        reason_stmt = ("select a.inst_id, a.child_number, a.con_id, a.reason " +
+                       "from gv$sql_shared_cursor a where a.inst_id = " +
+                       "decode(&my_inst, NULL, a.inst_id, &my_inst) and " +
+                       "a.sql_id = ''&my_sql_id'' order by inst_id, con_id, child_number")
+
+        pls = self.sql_shared_cursor_plsql(stmt, reason_stmt)
+        stmts_file = self.header + def_vars + pls
+        self.write_file("sql_shared_cursor", stmts_file)
+
+    def sql_shared_cursor_plsql(self, stmt, reason_stmt):
+        stmts = """spool sql_shared_cursor_&my_sql_id..log
+        
+declare
+  l_sql_id varchar2(128) := '&my_sql_id';
+  l_crs integer := dbms_sql.open_cursor;
+  l_stmt varchar2(2048) := '%s';
+  l_col_count pls_integer;
+  l_col_desc dbms_sql.desc_tab;
+  l_col_value varchar2(32767);
+  l_ret pls_integer;
+  l_res varchar2(32767);
+  l_col_name varchar2(128);
+  l_first boolean; 
+begin
+  dbms_sql.parse(l_crs, l_stmt, dbms_sql.native);
+  dbms_sql.describe_columns(l_crs, l_col_count, l_col_desc);
+  
+  for i in 1..l_col_count loop
+    dbms_sql.define_column(l_crs, i, l_col_value, 32767);   
+  end loop;
+  
+  l_ret := dbms_sql.execute(l_crs);
+
+  dbms_output.put_line('Output from GV$SQL_SHARED_CURSOR:');
+  while dbms_sql.fetch_rows(l_crs) > 0 loop
+    l_res := '';
+    l_first := true;
+    for i in 1..l_col_count loop
+        dbms_sql.column_value(l_crs, i, l_col_value);
+        l_col_name := l_col_desc(i).col_name;
+
+        if l_col_name = 'INST_ID' then
+          l_res := l_res || '- Inst. ID: ' || l_col_value;
+        elsif l_col_name = 'CHILD_NUMBER' then
+          l_res := l_res || ' Child Number: ' || l_col_value || ' ';
+        elsif l_col_name = 'CON_ID' then
+          l_res := l_res || ' (Con-ID: ' || l_col_value || ')';
+        end if;
+
+        if l_col_value = 'Y' and l_col_desc(i).col_type = 1 and 
+               l_col_desc(i).col_max_len = 1 then
+          if l_first then
+            l_first := false;
+          else
+            l_res := l_res || ';';
+          end if;
+          
+          l_res := l_res || ' ' || l_col_name;
+        end if;
+    end loop;
+    dbms_output.put_line(l_res);
+  end loop;
+
+  dbms_sql.close_cursor(l_crs);
+end;
+/
+
+declare
+  l_stmt varchar2(2048) := '%s';
+  l_crs sys_refcursor;
+  l_inst_id pls_integer;
+  l_child_number pls_integer;
+  l_con_id pls_integer;
+  l_reason varchar2(32767);
+begin
+  open l_crs for l_stmt;
+    
+  dbms_output.put_line('  ');
+  dbms_output.put_line('Reasons from GV$SQL_SHARED_CURSOR:');
+  dbms_output.put_line('  ');
+    
+  loop
+    fetch l_crs into l_inst_id, l_child_number, l_con_id, l_reason;
+    exit when l_crs%%notfound;
+    dbms_output.put_line('- Inst. ID: ' || l_inst_id || ' Child Number: ' ||
+        l_child_number || ' (Con-ID: ' || l_con_id || ')');
+    dbms_output.put_line('---> Reason: ' || l_reason);
+    dbms_output.put_line('  ');
+  end loop;
+  close l_crs;
+end;
+/
+
+
+alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
+
+set echo on linesi 100 trimsp on
+
+col inst_id for 9999999
+col con_id for 99999
+col child for 99999
+col execs for 999999
+col first_load_time for a20
+col last_load_time for a20
+col last_active_time for a20
+
+select a.inst_id, a.con_id, a.child_number child, a.executions execs,
+ a.first_load_time, a.last_load_time, a.last_active_time
+from gv$sql a 
+where a.sql_id = '&my_sql_id' and 
+  a.inst_id = decode(&my_inst_select, NULL, a.inst_id, &my_inst_select)
+order by inst_id, con_id, child_number
+/
+
+set long 1000000 longch 1000 pagesi 1000 linesi 256 trimsp on
+
+select sql_fulltext from gv$sql where sql_id = '&my_sql_id' and rownum <= 1;
+
+spool off
+""" % (stmt, reason_stmt)
+
         return stmts

@@ -2,6 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 import json
+import multiprocessing
 import optparse
 import os
 import re
@@ -37,6 +38,16 @@ def parse_args(arept_vers):
                       help="end time. Format: {yyyy-mm-dd hh24:mi | yyyy-mm-dd | hh24:mi | now}")
     parser.add_option("--awr-sql-id", help="SQL_IDs in AWR")
     parser.add_option("--awr-sql-format", help="Additional AWR SQL format options.")
+    parser.add_option("--awr-report", help="Get AWR reports",
+                      action="store_true", default=False)
+    parser.add_option("--awr-summary", help="Get only one AWR report for the whole interval.",
+                      action="store_true", default=False)
+    parser.add_option("--addm-report", help="Get ADDM reports",
+                      action="store_true", default=False)
+    parser.add_option("--ash-report", help="Get ASH reports",
+                      action="store_true", default=False)
+    parser.add_option("--global-ash-report", help="Get global ASH reports",
+                      action="store_true", default=False)
     parser.add_option("--parallel", help="Number of parallel AWR/ADDM reports",
                       type=int)
     parser.add_option("--sql-id", help="Cursor SQL_ID in shared library")
@@ -51,15 +62,18 @@ def parse_args(arept_vers):
     parser.add_option("--end-snap-id", help="max. snapshot ID",
                       type=int)
     parser.add_option("-t", "--template",
-                      help="{process | my_sql_trace | ses_sql_trace | meta_table | sql_details | "
+                      help="{process | my_sql_trace | ses_sql_trace | "
+                           "meta_table | meta_role | sql_details | "
                            "awr_sql_monintor | awr_sql_monitor_list | sql_monitor | sql_monitor_list |"
                            "sql_profile | awr_sql_profile | sql_baseline | "
                            "awr_baseline | hinted_baseline | "
-                           "get_awr_snap_ids | hidden_parameters | get_sql_id }")
+                           "get_awr_snap_ids | hidden_parameters | get_sql_id | "
+                           "sql_shared_cursor}")
     parser.add_option("--template-help", help="Show description of AREPT templates.",
                         default=False, action="store_true")
 
     (options, args) = parser.parse_args()
+    args = [] if args is None else args
 
     if options.template_help:
         print_templates_help()
@@ -85,6 +99,11 @@ def parse_args(arept_vers):
         schema=options.schema,
         awr_sql=options.awr_sql_id,
         awr_sql_format=options.awr_sql_format,
+        awr_report=options.awr_report,
+        awr_summary=options.awr_summary,
+        addm_report=options.addm_report,
+        ash_report=options.ash_report,
+        global_ash_report=options.global_ash_report,
         sql_id=options.sql_id,
         sql_child=options.sql_child_number,
         sql_format=options.sql_format,
@@ -130,6 +149,11 @@ class ProgArgs:
                  schema=None,
                  awr_sql=None,
                  awr_sql_format=None,
+                 awr_report=False,
+                 awr_summary=False,
+                 addm_report=False,
+                 ash_report=False,
+                 global_ash_report=False,
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
@@ -177,6 +201,11 @@ class ProgArgs:
         self.awr_sql = awr_sql
         self.awr_sql_ids = []
         self.awr_sql_format = awr_sql_format
+        self.awr_report = awr_report
+        self.awr_summary = awr_summary
+        self.addm_report = addm_report
+        self.ash_report = ash_report
+        self.global_ash_report = global_ash_report
 
         self.sql_id = sql_id
         self.sql_child = sql_child
@@ -210,6 +239,11 @@ class ProgArgs:
             ret += "- AWR SQL_ID(s): %s\n" % self.awr_sql
         if self.awr_sql_format:
             ret += "- AWR SQL format: %s\n" % self.awr_sql_format
+        ret += "- AWR report: %s\n" % self.awr_report
+        ret += "- AWR summary report: %s\n" % self.awr_summary
+        ret += "- ADDM report: %s\n" % self.addm_report
+        ret += "- ASH report: %s\n" % self.ash_report
+        ret += "- global ASH report: %s\n" % self.global_ash_report
 
         if self.sql_id:
             ret += " - SQL_ID: %s\n" % self.sql_id
@@ -256,13 +290,57 @@ class ProgArgs:
         self.check_objects()
         self.check_schema()
         self.check_awr()
+        self.check_addm()
+        self.check_ash()
         self.check_sql()
         self.check_template()
 
+        if self.parallel:
+            cpus = multiprocessing.cpu_count()
+            if self.parallel > cpus:
+                print("Error: parallel parameter (%s) exceeded the "
+                      "number of available CPUs(%s)." % (self.parallel, cpus))
+                sys.exit(1)
+
     def check_awr(self):
-        self.awr_sql_ids = self.check_awr_sql_ids()
-        if len(self.awr_sql_ids):
-            self.check_awr_interval()
+        if self.awr_report and self.awr_summary:
+            print("Error: either awr_report or awr_summary can be specified.")
+            sys.exit(1)
+
+        if self.awr_report or self.awr_summary:
+            if self.check_awr_interval():
+                return
+
+        elif self.awr_sql:
+            self.awr_sql_ids = self.check_awr_sql_ids()
+            if len(self.awr_sql_ids):
+                self.check_awr_interval()
+
+    def check_ash(self):
+        if not self.ash_report and not self.global_ash_report:
+            return
+
+        if (self.awr_report or self.awr_summary or
+            self.addm_report) and (self.ash_report or self.global_ash_report):
+            print("Error: only one of AWR/ADDM/ASH report option can be specified.")
+            sys.exit(1)
+
+        if not self.check_awr_time_interval():
+            print("Error: wrong ASH interval.")
+            sys.exit(1)
+
+    def check_addm(self):
+        if not self.addm_report:
+            return
+
+        if (self.awr_report or self.awr_summary or self.global_ash_report or
+            self.ash_report) and self.addm_report:
+            print("Error: only one of AWR/ADDM/ASH report option can be specified.")
+            sys.exit(1)
+
+        if not self.check_awr_interval():
+            print("Error: wrong ADDM interval.")
+            sys.exit(1)
 
     def check_sql(self):
         self.sql_child = str_to_int(self.sql_child,
@@ -276,35 +354,55 @@ class ProgArgs:
 
         return self.awr_sql_ids
 
+    # Return True, if Ok.
     def check_awr_interval(self):
-        if ((self.begin_time is None and self.end_time is None) and
-                (self.begin_snap_id is None and self.end_snap_id is None)):
-            print("Error: AWR interval is missing for AWR SQL_ID(s).")
-            sys.exit(1)
+        time_ivl = self.check_awr_time_interval()
+        ids_ivl = self.check_awr_ids_interval()
 
-        if ((self.begin_time is not None and self.end_time is not None) and
-                (self.begin_snap_id is not None and self.end_snap_id is not None)):
+        if time_ivl and ids_ivl:
             print("Error: found both time and IDs for AWR interval.")
             sys.exit(1)
 
-        if self.begin_time is not None and self.end_time is not None:
-            ts = TimeStamp(self.begin_time, False, "begin time")
-            self.begin_time = ts.check()
+        if not time_ivl and not ids_ivl:
+            print("Error: AWR interval is missing.")
+            sys.exit(1)
 
-            ts = TimeStamp(self.end_time, True, "end time")
-            self.end_time = ts.check()
+        return True
 
-            if self.begin_time is None or self.end_time is None:
-                print("Error: wrong AWR time interval.")
-                sys.exit(1)
-            else:
-                return
+    # Return True, if time interval is specified.
+    def check_awr_time_interval(self):
+        if self.begin_time is None and self.end_time is None:
+            return False
 
-        if self.begin_snap_id is not None and self.end_snap_id is not None:
-            return
+        if self.begin_time is None or self.end_time is None:
+            return False
 
-        print("Error: AWR interval is invalid.")
-        sys.exit(1)
+        ts = TimeStamp(self.begin_time, False, "begin time")
+        self.begin_time = ts.check()
+
+        ts = TimeStamp(self.end_time, True, "end time")
+        self.end_time = ts.check()
+
+        if self.begin_time is None or self.end_time is None:
+            print("Error: wrong time interval: %s and %s." %
+                  (self.begin_time, self.end_time))
+            sys.exit(1)
+
+        return True
+
+    def check_awr_ids_interval(self):
+        if self.begin_snap_id is None and self.end_snap_id is None:
+            return False
+
+        if self.begin_snap_id is None or self.end_snap_id is None:
+            return False
+
+        if self.begin_snap_id >= self.end_snap_id:
+            print("Error: wrong AWR snapshot IDs: %s and %s" %
+                  (self.begin_snap_id, self.end_snap_id))
+            sys.exit(1)
+
+        return True
 
     def check_db_account(self):
         if self.db_user is None:
@@ -440,11 +538,12 @@ class ProgArgs:
         if self.template is None:
             return
 
-        templates = ['process', 'my_sql_trace', 'ses_sql_trace', 'meta_table', "sql_details",
+        templates = ['process', 'my_sql_trace', 'ses_sql_trace',
+                     'meta_table', "meta_role", "sql_details",
                      'awr_sql_monitor', 'awr_sql_monitor_list',
                      'sql_monitor', 'sql_monitor_list', 'sql_profile', 'awr_sql_profile',
                      'get_awr_snap_ids', 'hidden_parameters', 'sql_baseline', 'awr_baseline',
-                     'hinted_baseline', 'get_sql_id']
+                     'hinted_baseline', 'get_sql_id', "sql_shared_cursor"]
         if self.template not in templates:
             print('Error: unknown template value "%s".' % self.template)
             sys.exit(1)

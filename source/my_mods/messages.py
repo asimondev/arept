@@ -7,11 +7,12 @@ def print_templates_help():
 SQL Trace:
  - my_sql_trace : Activate SQL tracing for the current session. 
  - ses_sql_trace [SID Serial#]
-    * Activate SQL tracing for other session.
+    => Activate SQL tracing for other session.
  
 SQL Statement details:
  - sql_details: Get DBMS_SQLTUNE.REPORT_SQL_DETAIL() output for SQL statement.
  - get_sql_id : Get SQL_ID, child number etc for the specified SQL statement.
+ - sql_shared_cursor: Get output from V$SQL_SHARED_CURSOR.
  
 SQL Monitor:
  - awr_sql_monitor     : Get SQL Monitor output from AWR.
@@ -34,10 +35,12 @@ SQL Plan Baseline:
                     
 Others:
  - process [SID Serial# Instance_Number=1]
-    * Select background process ID (SPID) and other details for a 
+    => Select background process ID (SPID) and other details for a 
     database session.
  - meta_table       : Get table/index/constraint DDLs using DBMS_METADATA for 
                       a table.
+ - meta_role [Role]
+    => Get role DDLs using DBMS_METADATA. 
  - get_awr_snap_ids : Get AWR snapshot interval IDs for specified time interval. 
  - hidden_parameters: Select database hidden parameters. 
                     

@@ -106,15 +106,6 @@ spool off
         if self.verbose:
             for line in out:
                 print(line)
-        # ret = []
-        # for line in out:
-        #     print(line)
-        # matchobj = re.match(r'\ATABLE:([\w]+)\s*\Z', line)
-        # if matchobj:
-        #     ret.append(matchobj.group(1))
-        #     break
-
-        # return ret
 
     def print_html_report(self, inst_id):
         file_name = "awr_sql_id_%s_inst_%s_report.html" % (self.sql_id, inst_id)
