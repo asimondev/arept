@@ -11,9 +11,10 @@ from .views import print_view_ddl, ViewNotFound
 from .mat_views import print_mat_view_ddls, MatViewNotFound
 
 from .awr import print_awr_sql, AWRSQLNotFound
-from .awr_report import generate_awr_reports
-from .addm_report import generate_addm_reports
+from .awr_report import generate_awr_reports, generate_global_awr_reports
+from .addm_report import generate_addm_reports, generate_rt_addm_report
 from .ash_report import generate_ash_report
+from .perfhub import generate_perfhub_report
 from .shared_lib import print_sql, SQLNotFound
 
 
@@ -39,10 +40,15 @@ class Database:
                  awr_sql_format=None,
                  awr_report=False,
                  awr_summary=False,
+                 global_awr_report=False,
+                 global_awr_summary=False,
                  addm_report=False,
+                 rt_addm_report=False,
                  parallel=None,
                  ash_report=False,
                  global_ash_report=False,
+                 rt_perfhub_report=False,
+                 awr_perfhub_report=False,
                  sql_id = None,
                  sql_child = None,
                  sql_format = None,
@@ -58,9 +64,14 @@ class Database:
         self.parallel = parallel
         self.awr_report = awr_report
         self.awr_summary = awr_summary
+        self.global_awr_report = global_awr_report
+        self.global_awr_summary = global_awr_summary
         self.addm_report = addm_report
+        self.rt_addm_report = rt_addm_report
         self.ash_report = ash_report
         self.global_ash_report = global_ash_report
+        self.rt_perfhub_report = rt_perfhub_report
+        self.awr_perfhub_report = awr_perfhub_report
 
         self.in_inst_ids = None
 
@@ -158,9 +169,15 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
             ret += "- Session user: %s\n" % self.ses_user
 
         ret += "- AWR report: %s\n" % self.awr_report
-        ret += "- AWR summary report: %s\n" % self.awr_summary
+        ret += "- AWR summary reports: %s\n" % self.awr_summary
+        ret += "- global AWR reports: %s\n" % self.global_awr_report
+        ret += "- global AWR summary reports: %s\n" % self.global_awr_summary
         ret += "- ADDM report: %s\n" % self.addm_report
+        ret += "- real-time ADDM report: %s\n" % self.rt_addm_report
         ret += "- ASH report: %s\n" % self.ash_report
+        ret += "- global ASH report: %s\n" % self.global_ash_report
+        ret += "- real-time performance hub report: %s\n" % self.rt_perfhub_report
+        ret += "- AWR performance hub report: %s\n" % self.awr_perfhub_report
 
         if self.out_dir:
             ret += "- out_dir: %s\n" % self.out_dir
@@ -682,6 +699,27 @@ end;
         generate_awr_reports(begin_id, end_id, awr_summary,
                              snap_ids, params, self.verbose)
 
+    def get_global_awr_reports(self, begin_id, end_id, global_awr_summary, snap_ids):
+        params = {
+            'db_con': self.db_con,
+            'pdb': self.pdb,
+            'dbid': self.dbid,
+            'is_dba': self.is_dba,
+            'is_rac': self.is_rac,
+            'inst_id': self.inst_id,
+            'inst_name': self.inst_name,
+            'rac_inst_ids': self.rac_inst_ids,
+            'version': self.version,
+            'out_dir': self.out_dir,
+            'out_level': self.out_level,
+            'out_format': self.out_format,
+            'parallel': self.parallel
+        }
+
+        generate_global_awr_reports(begin_id, end_id, global_awr_summary,
+                             snap_ids, params, self.verbose)
+
+
     def get_addm_report(self, begin_id, end_id, snap_ids):
         params = {
             'db_con': self.db_con,
@@ -745,8 +783,8 @@ order by instance_number, snap_id
         self.in_inst_ids = in_inst_ids
 
     def awr_objects(self):
-        if (self.awr_sql_ids or self.awr_report or
-                self.awr_summary or self.addm_report):
+        if (self.awr_sql_ids or self.awr_report or self.global_awr_report or
+                self.awr_summary or self.global_awr_summary or self.addm_report):
             (begin_id, end_id) = self.get_awr_interval_ids()
 
             self.select_awr_rac_instances(begin_id, end_id)
@@ -755,13 +793,25 @@ order by instance_number, snap_id
             if self.awr_sql_ids:
                 self.awr_sql_reports(begin_id, end_id)
 
-            if self.awr_report or self.awr_summary or self.addm_report:
+            if (self.awr_report or self.awr_summary or self.global_awr_report or
+                    self.global_awr_summary or self.addm_report):
                 snap_ids = self.select_awr_report_snap_ids(begin_id, end_id)
                 if self.awr_report or self.awr_summary:
                     self.get_awr_report(begin_id, end_id,
                                     self.awr_summary, snap_ids)
+                elif self.global_awr_report or self.global_awr_summary:
+                    self.get_global_awr_reports(begin_id, end_id,
+                                                self.global_awr_summary, snap_ids)
                 elif self.addm_report:
                     self.get_addm_report(begin_id, end_id, snap_ids)
+
+    def addm_reports(self):
+        if self.rt_addm_report:
+            self.get_rt_addm_report()
+
+    def perfhub_reports(self):
+        if self.rt_perfhub_report or self.awr_perfhub_report:
+            self.get_perfhub_report()
 
     def ash_reports(self):
         if self.ash_report:
@@ -771,7 +821,13 @@ order by instance_number, snap_id
             self.get_ash_report(True)
 
     def get_ash_report(self, global_ash_report):
-        params = {
+        params = self.set_default_params()
+
+        generate_ash_report(self.begin_time, self.end_time, params,
+                             self.verbose, global_ash_report)
+
+    def set_default_params(self):
+        ret = {
             'db_con': self.db_con,
             'pdb': self.pdb,
             'dbid': self.dbid,
@@ -787,5 +843,16 @@ order by instance_number, snap_id
             'parallel': self.parallel
         }
 
-        generate_ash_report(self.begin_time, self.end_time, params,
-                             self.verbose, global_ash_report)
+        return ret
+
+    def get_rt_addm_report(self):
+        params = self.set_default_params()
+        generate_rt_addm_report(params, self.verbose)
+
+    def get_perfhub_report(self):
+        params = self.set_default_params()
+        generate_perfhub_report(params, self.verbose,
+                                begin_time=self.begin_time,
+                                end_time=self.end_time,
+                                rt_perfhub_report=self.rt_perfhub_report,
+                                awr_perfhub_report=self.awr_perfhub_report)

@@ -42,11 +42,21 @@ def parse_args(arept_vers):
                       action="store_true", default=False)
     parser.add_option("--awr-summary", help="Get only one AWR report for the whole interval.",
                       action="store_true", default=False)
+    parser.add_option("--global-awr-report", help="Get global AWR reports",
+                      action="store_true", default=False)
+    parser.add_option("--global-awr-summary", help="Get global AWR reports",
+                      action="store_true", default=False)
     parser.add_option("--addm-report", help="Get ADDM reports",
+                      action="store_true", default=False)
+    parser.add_option("--rt-addm-report", help="Get real-time ADDM report",
                       action="store_true", default=False)
     parser.add_option("--ash-report", help="Get ASH reports",
                       action="store_true", default=False)
     parser.add_option("--global-ash-report", help="Get global ASH reports",
+                      action="store_true", default=False)
+    parser.add_option("--rt-perfhub-report", help="Get real-time performance hub report",
+                      action="store_true", default=False)
+    parser.add_option("--awr-perfhub-report", help="Get AWR performance hub report",
                       action="store_true", default=False)
     parser.add_option("--parallel", help="Number of parallel AWR/ADDM reports",
                       type=int)
@@ -101,9 +111,14 @@ def parse_args(arept_vers):
         awr_sql_format=options.awr_sql_format,
         awr_report=options.awr_report,
         awr_summary=options.awr_summary,
+        global_awr_report=options.global_awr_report,
+        global_awr_summary=options.global_awr_summary,
         addm_report=options.addm_report,
+        rt_addm_report=options.rt_addm_report,
         ash_report=options.ash_report,
         global_ash_report=options.global_ash_report,
+        rt_perfhub_report=options.rt_perfhub_report,
+        awr_perfhub_report=options.awr_perfhub_report,
         sql_id=options.sql_id,
         sql_child=options.sql_child_number,
         sql_format=options.sql_format,
@@ -151,9 +166,14 @@ class ProgArgs:
                  awr_sql_format=None,
                  awr_report=False,
                  awr_summary=False,
+                 global_awr_report=False,
+                 global_awr_summary=False,
                  addm_report=False,
+                 rt_addm_report=False,
                  ash_report=False,
                  global_ash_report=False,
+                 rt_perfhub_report=False,
+                 awr_perfhub_report=False,
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
@@ -202,10 +222,15 @@ class ProgArgs:
         self.awr_sql_ids = []
         self.awr_sql_format = awr_sql_format
         self.awr_report = awr_report
+        self.global_awr_report = global_awr_report
+        self.global_awr_summary = global_awr_summary
         self.awr_summary = awr_summary
         self.addm_report = addm_report
+        self.rt_addm_report = rt_addm_report
         self.ash_report = ash_report
         self.global_ash_report = global_ash_report
+        self.rt_perfhub_report = rt_perfhub_report
+        self.awr_perfhub_report = awr_perfhub_report
 
         self.sql_id = sql_id
         self.sql_child = sql_child
@@ -240,10 +265,15 @@ class ProgArgs:
         if self.awr_sql_format:
             ret += "- AWR SQL format: %s\n" % self.awr_sql_format
         ret += "- AWR report: %s\n" % self.awr_report
-        ret += "- AWR summary report: %s\n" % self.awr_summary
+        ret += "- AWR summary reports: %s\n" % self.awr_summary
+        ret += "- global AWR reports: %s\n" % self.global_awr_report
+        ret += "- global AWR summary report: %s\n" % self.global_awr_summary
         ret += "- ADDM report: %s\n" % self.addm_report
+        ret += "- real-time ADDM report: %s\n" % self.rt_addm_report
         ret += "- ASH report: %s\n" % self.ash_report
         ret += "- global ASH report: %s\n" % self.global_ash_report
+        ret += "- real-time performance hub report: %s\n" % self.rt_perfhub_report
+        ret += "- AWR performance hub report: %s\n" % self.awr_perfhub_report
 
         if self.sql_id:
             ret += " - SQL_ID: %s\n" % self.sql_id
@@ -292,6 +322,7 @@ class ProgArgs:
         self.check_awr()
         self.check_addm()
         self.check_ash()
+        self.check_perfhub()
         self.check_sql()
         self.check_template()
 
@@ -302,12 +333,21 @@ class ProgArgs:
                       "number of available CPUs(%s)." % (self.parallel, cpus))
                 sys.exit(1)
 
-    def check_awr(self):
-        if self.awr_report and self.awr_summary:
-            print("Error: either awr_report or awr_summary can be specified.")
-            sys.exit(1)
+    def check_awr_reports(self):
+        return (self.awr_report or self.awr_summary or
+                self.global_awr_report or self.global_awr_summary)
 
-        if self.awr_report or self.awr_summary:
+    def check_addm_reports(self):
+        return self.addm_report or self.rt_addm_report
+
+    def check_ash_reports(self):
+        return self.ash_report or self.global_ash_report
+
+    def check_perfhub_reports(self):
+        return self.rt_perfhub_report or self.awr_perfhub_report
+
+    def check_awr(self):
+        if self.check_awr_reports():
             if self.check_awr_interval():
                 return
 
@@ -317,11 +357,11 @@ class ProgArgs:
                 self.check_awr_interval()
 
     def check_ash(self):
-        if not self.ash_report and not self.global_ash_report:
+        if not self.check_ash_reports():
             return
 
-        if (self.awr_report or self.awr_summary or
-            self.addm_report) and (self.ash_report or self.global_ash_report):
+        if ((self.check_awr_reports() or self.check_addm_reports()) and
+                self.check_ash_reports()):
             print("Error: only one of AWR/ADDM/ASH report option can be specified.")
             sys.exit(1)
 
@@ -329,14 +369,38 @@ class ProgArgs:
             print("Error: wrong ASH interval.")
             sys.exit(1)
 
-    def check_addm(self):
-        if not self.addm_report:
+    def check_perfhub(self):
+        if not self.check_perfhub_reports():
             return
 
-        if (self.awr_report or self.awr_summary or self.global_ash_report or
-            self.ash_report) and self.addm_report:
+        if ((self.check_awr_reports() or self.check_addm_reports() or
+                self.check_ash_reports()) and self.check_perfhub_reports()):
+            print("Error: only one of AWR/ADDM/ASH/Performance Hub report option can be specified.")
+            sys.exit(1)
+
+        if self.rt_perfhub_report and self.awr_perfhub_report:
+            print("Error: either real-time or AWR performance hub report can be specified.")
+            sys.exit(1)
+
+        if not self.check_awr_time_interval():
+            print("Error: wrong performance hub interval.")
+            sys.exit(1)
+
+    def check_addm(self):
+        if not self.addm_report and not self.rt_addm_report:
+            return
+
+        if self.addm_report and self.rt_addm_report:
+            print("Error: either real-time or regular ADDM report can be specified.")
+            sys.exit(1)
+
+        if ((self.check_awr_reports() or self.global_ash_report or
+             self.ash_report) and (self.addm_report or self.rt_addm_report)):
             print("Error: only one of AWR/ADDM/ASH report option can be specified.")
             sys.exit(1)
+
+        if self.rt_addm_report:
+            return
 
         if not self.check_awr_interval():
             print("Error: wrong ADDM interval.")

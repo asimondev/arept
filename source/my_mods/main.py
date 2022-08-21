@@ -46,9 +46,14 @@ def start_arept():
                   parallel=args.parallel,
                   awr_report=args.awr_report,
                   awr_summary=args.awr_summary,
+                  global_awr_report=args.global_awr_report,
+                  global_awr_summary=args.global_awr_summary,
                   addm_report=args.addm_report,
+                  rt_addm_report=args.rt_addm_report,
                   ash_report=args.ash_report,
                   global_ash_report=args.global_ash_report,
+                  rt_perfhub_report=args.rt_perfhub_report,
+                  awr_perfhub_report=args.awr_perfhub_report,
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
                   sql_format=args.awr_sql_format,
@@ -64,7 +69,9 @@ def start_arept():
     print("Output directory: %s" % db.out_dir)
 
     db.awr_objects()
+    db.addm_reports()
     db.ash_reports()
+    db.perfhub_reports()
 
     if db.sql_id:
         db.sql_report()

@@ -1,6 +1,7 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
+import os.path
 import sys
 
 
@@ -19,7 +20,10 @@ set linesize 256
 
 def file_created(file_name, level=1):
     start = " " * (level if level == 1 else level * 2)
-    print("%s- File %s created." % (start, file_name))
+    if os.path.exists(file_name):
+        print("%s- File %s created." % (start, file_name))
+    else:
+        print("%s- Error: could not create file %s." % (start, file_name))
 
 
 def select_object(obj_owner, obj_name, obj_type, tab_prefix):
