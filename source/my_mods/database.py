@@ -9,12 +9,13 @@ from .tables import print_table_ddls, TableNotFound
 from .indexes import print_index_ddls, IndexNotFound
 from .views import print_view_ddl, ViewNotFound
 from .mat_views import print_mat_view_ddls, MatViewNotFound
+from .utils import print_session_params
 
 from .awr import print_awr_sql, AWRSQLNotFound
 from .awr_report import generate_awr_reports, generate_global_awr_reports
 from .addm_report import generate_addm_reports, generate_rt_addm_report
 from .ash_report import generate_ash_report
-from .perfhub import generate_perfhub_report
+from .perfhub import generate_perfhub_report, generate_perfhub_sql_report, generate_perfhub_session_report
 from .shared_lib import print_sql, SQLNotFound
 
 
@@ -49,9 +50,14 @@ class Database:
                  global_ash_report=False,
                  rt_perfhub_report=False,
                  awr_perfhub_report=False,
-                 sql_id = None,
-                 sql_child = None,
-                 sql_format = None,
+                 rt_perfhub_sql=None,
+                 awr_perfhub_sql=None,
+                 rt_perfhub_session=False,
+                 awr_perfhub_session=False,
+                 params={},
+                 sql_id=None,
+                 sql_child=None,
+                 sql_format=None,
                  arept_args = [],
                  verbose=False):
         self.begin_time = begin_time
@@ -72,6 +78,12 @@ class Database:
         self.global_ash_report = global_ash_report
         self.rt_perfhub_report = rt_perfhub_report
         self.awr_perfhub_report = awr_perfhub_report
+        self.rt_perfhub_sql = rt_perfhub_sql
+        self.awr_perfhub_sql = awr_perfhub_sql
+        self.rt_perfhub_session = rt_perfhub_session
+        self.awr_perfhub_session = awr_perfhub_session
+
+        self.params = params
 
         self.in_inst_ids = None
 
@@ -178,6 +190,14 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
         ret += "- global ASH report: %s\n" % self.global_ash_report
         ret += "- real-time performance hub report: %s\n" % self.rt_perfhub_report
         ret += "- AWR performance hub report: %s\n" % self.awr_perfhub_report
+        if self.rt_perfhub_sql:
+            ret += "- real-time performance hub SQL report: %s\n" % self.rt_perfhub_sql
+        if self.awr_perfhub_sql:
+            ret += "- AWR performance hub SQL report: %s\n" % self.awr_perfhub_sql
+        ret += "- real-time performance hub session report: %s\n" % self.rt_perfhub_session
+        ret += "- AWR performance hub session report: %s\n" % self.awr_perfhub_session
+
+        ret += print_session_params(self.params)
 
         if self.out_dir:
             ret += "- out_dir: %s\n" % self.out_dir
@@ -812,6 +832,10 @@ order by instance_number, snap_id
     def perfhub_reports(self):
         if self.rt_perfhub_report or self.awr_perfhub_report:
             self.get_perfhub_report()
+        elif self.rt_perfhub_sql or self.awr_perfhub_sql:
+            self.get_perfhub_sql()
+        elif self.rt_perfhub_session or self.awr_perfhub_session:
+            self.get_perfhub_session()
 
     def ash_reports(self):
         if self.ash_report:
@@ -831,6 +855,7 @@ order by instance_number, snap_id
             'db_con': self.db_con,
             'pdb': self.pdb,
             'dbid': self.dbid,
+            'instance_number': self.params['instance_number'],
             'is_dba': self.is_dba,
             'is_rac': self.is_rac,
             'inst_id': self.inst_id,
@@ -856,3 +881,20 @@ order by instance_number, snap_id
                                 end_time=self.end_time,
                                 rt_perfhub_report=self.rt_perfhub_report,
                                 awr_perfhub_report=self.awr_perfhub_report)
+
+    def get_perfhub_sql(self):
+        params = self.set_default_params()
+        generate_perfhub_sql_report(params, self.verbose,
+                                begin_time=self.begin_time,
+                                end_time=self.end_time,
+                                rt_perfhub_sql=self.rt_perfhub_sql,
+                                awr_perfhub_sql=self.awr_perfhub_sql)
+
+    def get_perfhub_session(self):
+        params = self.set_default_params()
+        params.update(self.params)
+        generate_perfhub_session_report(params, self.verbose,
+                                begin_time=self.begin_time,
+                                end_time=self.end_time,
+                                rt_perfhub_session=self.rt_perfhub_session,
+                                awr_perfhub_session=self.awr_perfhub_session)

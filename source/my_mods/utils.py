@@ -54,3 +54,15 @@ def str_to_int(s, msg, do_exit=True):
 
 def date_to_str(s):
     return s.replace(" ", "_").replace(":", "-")
+
+
+def print_session_params(params):
+    ret = ""
+    if params['sid'] is not None:
+        ret += "- session SID: %s\n" % params['sid']
+    if params['serial'] is not None:
+        ret += "- session serial number: %s\n" % params['serial']
+    if params['instance_number'] is not None:
+        ret += "- instance number: %s\n" % params['instance_number']
+
+    return ret

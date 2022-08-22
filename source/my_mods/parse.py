@@ -12,7 +12,7 @@ import sys
 from time import strftime
 
 from .messages import  print_templates_help
-from .utils import str_to_int
+from .utils import str_to_int, print_session_params
 
 
 def parse_args(arept_vers):
@@ -58,11 +58,20 @@ def parse_args(arept_vers):
                       action="store_true", default=False)
     parser.add_option("--awr-perfhub-report", help="Get AWR performance hub report",
                       action="store_true", default=False)
+    parser.add_option("--rt-perfhub-sql", help="Get real-time performance hub SQL statement report")
+    parser.add_option("--awr-perfhub-sql", help="Get AWR performance hub SQL statement report")
+    parser.add_option("--rt-perfhub-session", help="Get real-time performance hub session report",
+                      action="store_true", default=False)
+    parser.add_option("--awr-perfhub-session", help="Get AWR performance hub session report",
+                      action="store_true", default=False)
     parser.add_option("--parallel", help="Number of parallel AWR/ADDM reports",
                       type=int)
     parser.add_option("--sql-id", help="Cursor SQL_ID in shared library")
     parser.add_option("--sql-child-number", help="Cursor child nuber in shared library")
     parser.add_option("--sql-format", help="Additional SQL format options")
+    parser.add_option("--sid", help="Session SID number.", type=int)
+    parser.add_option("--serial", help="Session serial number.", type=int)
+    parser.add_option("--instance", help="Instance number.", type=int)
     parser.add_option("--cleanup", help='"rm -rf *" for existing output directory',
                       action="store_true", default=False)
     parser.add_option("-v", "--verbose", help="verbose",
@@ -119,9 +128,16 @@ def parse_args(arept_vers):
         global_ash_report=options.global_ash_report,
         rt_perfhub_report=options.rt_perfhub_report,
         awr_perfhub_report=options.awr_perfhub_report,
+        rt_perfhub_sql=options.rt_perfhub_sql,
+        awr_perfhub_sql=options.awr_perfhub_sql,
+        rt_perfhub_session=options.rt_perfhub_session,
+        awr_perfhub_session=options.awr_perfhub_session,
         sql_id=options.sql_id,
         sql_child=options.sql_child_number,
         sql_format=options.sql_format,
+        sid=options.sid,
+        serial=options.serial,
+        instance_number=options.instance,
         template=options.template,
         arept_args=args
     )
@@ -174,9 +190,16 @@ class ProgArgs:
                  global_ash_report=False,
                  rt_perfhub_report=False,
                  awr_perfhub_report=False,
+                 rt_perfhub_sql=None,
+                 awr_perfhub_sql=None,
+                 rt_perfhub_session=False,
+                 awr_perfhub_session=False,
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
+                 sid=None,
+                 serial=None,
+                 instance_number=None,
                  template=None,
                  arept_args=[]
                  ):
@@ -231,10 +254,18 @@ class ProgArgs:
         self.global_ash_report = global_ash_report
         self.rt_perfhub_report = rt_perfhub_report
         self.awr_perfhub_report = awr_perfhub_report
+        self.rt_perfhub_sql = rt_perfhub_sql
+        self.awr_perfhub_sql = awr_perfhub_sql
+        self.rt_perfhub_session = rt_perfhub_session
+        self.awr_perfhub_session = awr_perfhub_session
 
         self.sql_id = sql_id
         self.sql_child = sql_child
         self.sql_format = sql_format
+
+        self.params = {
+            'sid': sid, 'serial': serial, 'instance_number': instance_number
+        }
 
         self.template = template
         self.arept_args = arept_args
@@ -274,6 +305,12 @@ class ProgArgs:
         ret += "- global ASH report: %s\n" % self.global_ash_report
         ret += "- real-time performance hub report: %s\n" % self.rt_perfhub_report
         ret += "- AWR performance hub report: %s\n" % self.awr_perfhub_report
+        if self.rt_perfhub_sql:
+            ret += "- real-time performance hub SQL report: %s\n" % self.rt_perfhub_sql
+        if self.awr_perfhub_sql:
+            ret += "- AWR performance hub SQL report: %s\n" % self.awr_perfhub_sql
+        ret += "- real-time performance hub session report: %s\n" % self.rt_perfhub_session
+        ret += "- AWR performance hub session report: %s\n" % self.awr_perfhub_session
 
         if self.sql_id:
             ret += " - SQL_ID: %s\n" % self.sql_id
@@ -298,6 +335,8 @@ class ProgArgs:
             ret += "- obj_file: %s\n" % self.obj_file
         if self.schema:
             ret += "- schema: %s\n" % self.schema
+
+        ret += print_session_params(self.params)
 
         if self.template:
             ret += "- template: %s\n" % self.template
@@ -344,7 +383,11 @@ class ProgArgs:
         return self.ash_report or self.global_ash_report
 
     def check_perfhub_reports(self):
-        return self.rt_perfhub_report or self.awr_perfhub_report
+        return (self.rt_perfhub_report or self.awr_perfhub_report or
+                self.rt_perfhub_sql is not None or
+                self.awr_perfhub_sql is not None or
+                self.rt_perfhub_session or
+                self.awr_perfhub_session)
 
     def check_awr(self):
         if self.check_awr_reports():
@@ -381,6 +424,20 @@ class ProgArgs:
         if self.rt_perfhub_report and self.awr_perfhub_report:
             print("Error: either real-time or AWR performance hub report can be specified.")
             sys.exit(1)
+
+        if self.rt_perfhub_sql and self.awr_perfhub_sql:
+            print("Error: either real-time or AWR performance hub SQL report can be specified.")
+            sys.exit(1)
+
+        if self.rt_perfhub_session and self.awr_perfhub_session:
+            print("Error: either real-time or AWR performance hub session report can be specified.")
+            sys.exit(1)
+
+        if self.rt_perfhub_session or self.awr_perfhub_session:
+            if not self.params['sid'] or not self.params['serial']:
+                print("Error: session SID and serial number are missing for performance "
+                      "hub session report")
+                sys.exit(1)
 
         if not self.check_awr_time_interval():
             print("Error: wrong performance hub interval.")

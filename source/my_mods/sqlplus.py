@@ -12,6 +12,24 @@ import sys
 import tempfile
 
 
+from .utils import file_created
+
+
+def run_sqlplus(con=None, pdb=None, stmts=None, out_dir=None,
+                verbose=False, silent=False, do_exit=False,
+                file_name=None):
+    sql = SqlPlus(con=con,
+                  pdb=pdb,
+                  stmts=stmts,
+                  out_dir=out_dir,
+                  verbose=verbose)
+    out = sql.run(silent=silent, do_exit=do_exit)
+    file_created(file_name)
+    if verbose:
+        for line in out:
+            print(line)
+
+
 class SqlPlus:
     def __init__(self, con=None, pdb=None, stmts=None, sql_file=None,
                  log_file=None, cmd=None, verbose=False,
