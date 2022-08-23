@@ -1,11 +1,10 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-import os
 from time import strftime
 
-from .utils import file_created, print_session_params
-from .sqlplus import SqlPlus, run_sqlplus
+from .utils import print_session_params
+from .sqlplus import run_sqlplus
 
 
 def generate_perfhub_report(params, verbose,
@@ -183,16 +182,14 @@ from dual
 spool off
 """ % (file_name, report, self.begin_time, self.end_time,
        inst, self.db_id, level)
-        sql = SqlPlus(con=self.params['db_con'],
-                      pdb=self.params['pdb'],
-                      stmts=stmts,
-                      out_dir=self.params['out_dir'],
-                      verbose=self.verbose)
-        out = sql.run(silent=True, do_exit=False)
-        file_created(file_name)
-        if self.verbose:
-            for line in out:
-                print(line)
+
+        run_sqlplus(con=self.params['db_con'],
+                    pdb=self.params['pdb'],
+                    stmts=stmts,
+                    out_dir=self.params['out_dir'],
+                    verbose=self.verbose,
+                    silent=True,
+                    file_name=file_name)
 
     # DBMS_PERF.REPORT_SQL (
     #     sql_id               IN varchar2 default null,
@@ -266,16 +263,13 @@ from dual
 spool off
 """ % (file_name, report, sql_id, self.begin_time, self.end_time, inst, self.db_id, level)
 
-        sql = SqlPlus(con=self.params['db_con'],
-                      pdb=self.params['pdb'],
-                      stmts=stmts,
-                      out_dir=self.params['out_dir'],
-                      verbose=self.verbose)
-        out = sql.run(silent=True, do_exit=False)
-        file_created(file_name)
-        if self.verbose:
-            for line in out:
-                print(line)
+        run_sqlplus(con=self.params['db_con'],
+                    pdb=self.params['pdb'],
+                    stmts=stmts,
+                    out_dir=self.params['out_dir'],
+                    verbose=self.verbose,
+                    silent=True,
+                    file_name=file_name)
 
     # DBMS_PERF.REPORT_SESSION (
     # Instance ID to for which to retrieve data. If NULL (default), then instance of current session.

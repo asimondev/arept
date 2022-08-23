@@ -67,6 +67,7 @@ def start_arept():
 
     db.select_version()
     db.select_properties()
+    db.set_instance_number()
 
     if verbose:
         print(db)

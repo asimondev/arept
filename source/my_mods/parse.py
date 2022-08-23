@@ -71,7 +71,7 @@ def parse_args(arept_vers):
     parser.add_option("--sql-format", help="Additional SQL format options")
     parser.add_option("--sid", help="Session SID number.", type=int)
     parser.add_option("--serial", help="Session serial number.", type=int)
-    parser.add_option("--instance", help="Instance number.", type=int)
+    parser.add_option("--instance", help="Instance number (0 - current instance).", type=int)
     parser.add_option("--cleanup", help='"rm -rf *" for existing output directory',
                       action="store_true", default=False)
     parser.add_option("-v", "--verbose", help="verbose",

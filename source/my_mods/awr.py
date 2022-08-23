@@ -1,8 +1,9 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-from .sqlplus import SqlPlus
+from .sqlplus import SqlPlus, run_sqlplus
 from .utils import file_created, desc_stmt
+
 
 class AWRSQLNotFound(Exception): pass
 
@@ -96,16 +97,12 @@ spool off
 """ % (self.params['out_dir'], file_name, self.begin_id, self.end_id, self.sql_id,
        self.params['dbid'], inst_id)
 
-        sql = SqlPlus(con=self.params['db_con'],
-                      pdb=self.params['pdb'],
-                      stmts=stmts,
-                      out_dir=self.params['out_dir'],
-                      verbose=self.verbose)
-        out = sql.run(silent=False, do_exit=False)
-        file_created(file_name)
-        if self.verbose:
-            for line in out:
-                print(line)
+        run_sqlplus(con=self.params['db_con'],
+                    pdb=self.params['pdb'],
+                    stmts=stmts,
+                    out_dir=self.params['out_dir'],
+                    verbose=self.verbose,
+                    file_name=file_name)
 
     def print_html_report(self, inst_id):
         file_name = "awr_sql_id_%s_inst_%s_report.html" % (self.sql_id, inst_id)
@@ -122,16 +119,13 @@ spool off
 """ % (self.params['out_dir'], file_name, self.begin_id, self.end_id, self.sql_id,
        self.params['dbid'], inst_id)
 
-        sql = SqlPlus(con=self.params['db_con'],
-                      pdb=self.params['pdb'],
-                      stmts=stmts,
-                      out_dir=self.params['out_dir'],
-                      verbose=self.verbose)
-        out = sql.run(silent=True, do_exit=False)
-        file_created(file_name)
-        if self.verbose:
-            for line in out:
-                print(line)
+        run_sqlplus(con=self.params['db_con'],
+                    pdb=self.params['pdb'],
+                    stmts=stmts,
+                    out_dir=self.params['out_dir'],
+                    verbose=self.verbose,
+                    silent=True,
+                    file_name=file_name)
 
     def get_mon_list(self):
         for fmt in self.params['out_format']:
@@ -172,13 +166,10 @@ spool off
        self.sql_id, self.begin_id, self.end_id,
        self.sql_id, self.begin_id, self.end_id)
 
-            sql = SqlPlus(con=self.params['db_con'],
-                          pdb=self.params['pdb'],
-                          stmts=fmt_stmts + stmts,
-                          out_dir=self.params['out_dir'],
-                          verbose=self.verbose)
-            out = sql.run(silent=True)
-            file_created(file_name)
-            if self.verbose:
-                for line in out:
-                    print(line)
+            run_sqlplus(con=self.params['db_con'],
+                        pdb=self.params['pdb'],
+                        stmts=fmt_stmts,
+                        out_dir=self.params['out_dir'],
+                        verbose=self.verbose,
+                        silent=True,
+                        file_name=file_name)

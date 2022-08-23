@@ -327,6 +327,10 @@ select 'IS_RAC: ' || value from v$system_parameter where name = 'cluster_databas
             print(out)
             sys.exit(1)
 
+    def set_instance_number(self):
+        if self.params['instance_number'] == 0:
+            self.params['instance_number'] = self.inst_id
+
     def select_awr_rac_instances(self, begin_id, end_id):
         if not self.is_rac:
             return
@@ -519,19 +523,8 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
                 print(ix)
 
     def awr_sql_reports(self, begin_id, end_id):
+        params = self.set_default_params()
         params = {
-            'db_con': self.db_con,
-            'pdb': self.pdb,
-            'dbid': self.dbid,
-            'is_dba': self.is_dba,
-            'is_rac': self.is_rac,
-            'inst_id': self.inst_id,
-            'inst_name': self.inst_name,
-            'rac_inst_ids': self.rac_inst_ids,
-            'version': self.version,
-            'out_dir': self.out_dir,
-            'out_level': self.out_level,
-            'out_format': self.out_format,
             'awr_sql_format': self.awr_sql_format
         }
 
