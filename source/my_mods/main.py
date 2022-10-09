@@ -62,6 +62,7 @@ def start_arept():
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
                   sql_format=args.awr_sql_format,
+                  wait_event_name=args.wait_event_name,
                   arept_args=args.arept_args,
                   verbose=verbose)
 
@@ -71,6 +72,10 @@ def start_arept():
 
     if verbose:
         print(db)
+
+    if db.wait_event_name:
+        db.get_wait_event_params()
+        return
 
     print("Output directory: %s" % db.out_dir)
 

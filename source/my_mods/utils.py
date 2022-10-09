@@ -66,3 +66,8 @@ def print_session_params(params):
         ret += "- instance number: %s\n" % params['instance_number']
 
     return ret
+
+
+def get_instance_predicate(inst_column, my_inst):
+    ret = "decode(%s, NULL, %s, %s)" % (inst_column, inst_column, my_inst)
+    return ret

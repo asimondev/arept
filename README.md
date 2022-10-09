@@ -60,6 +60,8 @@ Options:
                         min. snapshot ID
   --end-snap-id=END_SNAP_ID
                         max. snapshot ID
+  --get-wait-event=GET_WAIT_EVENT
+                        Get wait event parameters description
   -t TEMPLATE, --template=TEMPLATE
                         {osproc | my_sql_trace | ses_sql_trace | meta_table |
                         sql_details | awr_sql_monintor | awr_sql_monitor_list
@@ -316,4 +318,13 @@ spool off
 
 
  - File /home/oracle/arept/arept_output/ses_sql_trace.sql created.
+```
+
+### Wait Event Parameters Description.
+
+Get description of wait event parameters from V$EVENT_NAME:
+```
+./arept.py --get-wait-event 'buffer busy%'
+Wait event: buffer busy waits ==> P1: file#;  P2: block#;  P3: class#
+Wait event: buffer busy ==> P1: group#;  P2: obj#;  P3: block#
 ```

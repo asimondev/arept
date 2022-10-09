@@ -80,6 +80,7 @@ def parse_args(arept_vers):
                       type=int)
     parser.add_option("--end-snap-id", help="max. snapshot ID",
                       type=int)
+    parser.add_option("--get-wait-event", help="Get wait event parameters description")
     parser.add_option("-t", "--template",
                       help="{process | my_sql_trace | ses_sql_trace | "
                            "meta_table | meta_role | sql_details | "
@@ -87,7 +88,7 @@ def parse_args(arept_vers):
                            "sql_profile | awr_sql_profile | sql_baseline | "
                            "awr_baseline | hinted_baseline | "
                            "get_awr_snap_ids | hidden_parameters | get_sql_id | "
-                           "sql_shared_cursor}")
+                           "sql_shared_cursor | check_sql_id }")
     parser.add_option("--template-help", help="Show description of AREPT templates.",
                         default=False, action="store_true")
 
@@ -139,6 +140,7 @@ def parse_args(arept_vers):
         serial=options.serial,
         instance_number=options.instance,
         template=options.template,
+        wait_event_name=options.get_wait_event,
         arept_args=args
     )
     prog_args.check_args()
@@ -201,6 +203,7 @@ class ProgArgs:
                  serial=None,
                  instance_number=None,
                  template=None,
+                 wait_event_name=None,
                  arept_args=[]
                  ):
 
@@ -270,6 +273,8 @@ class ProgArgs:
         self.template = template
         self.arept_args = arept_args
 
+        self.wait_event_name = wait_event_name
+
     def __str__(self):
         ret = "Class ProgArgs:\n"
         if self.config_file:
@@ -337,6 +342,9 @@ class ProgArgs:
             ret += "- schema: %s\n" % self.schema
 
         ret += print_session_params(self.params)
+
+        if self.wait_event_name:
+            ret += "- wait event parameters: %s\n" % self.wait_event_name
 
         if self.template:
             ret += "- template: %s\n" % self.template
@@ -664,7 +672,8 @@ class ProgArgs:
                      'awr_sql_monitor', 'awr_sql_monitor_list',
                      'sql_monitor', 'sql_monitor_list', 'sql_profile', 'awr_sql_profile',
                      'get_awr_snap_ids', 'hidden_parameters', 'sql_baseline', 'awr_baseline',
-                     'hinted_baseline', 'get_sql_id', "sql_shared_cursor"]
+                     'hinted_baseline', 'get_sql_id', "sql_shared_cursor",
+                     "check_sql_id"]
         if self.template not in templates:
             print('Error: unknown template value "%s".' % self.template)
             sys.exit(1)
@@ -721,6 +730,10 @@ class ProgArgs:
         if (self.sql_format is None and 'sql-format' in data and
                 data['sql-format'] is not None):
             self.sql_format = data['sql-format']
+
+        if (self.wait_event_params is None and 'get-wait-event' in data and
+                data['get-wait-event'] is not None):
+            self.wait_event_params = data['get-wait-event']
 
         if (self.template is None and 'template' in data and
                 data['template'] is not None):

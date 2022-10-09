@@ -58,6 +58,7 @@ class Database:
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
+                 wait_event_name=None,
                  arept_args = [],
                  verbose=False):
         self.begin_time = begin_time
@@ -109,6 +110,8 @@ class Database:
         self.con_name = None
         self.ses_user = None
         self.rac_inst_ids = []
+
+        self.wait_event_name = wait_event_name
 
         self.db_user = db_user
         self.db_pwd = db_pwd
@@ -179,6 +182,9 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
             ret += "- Container name: %s\n" % self.con_name
         if self.ses_user is not None:
             ret += "- Session user: %s\n" % self.ses_user
+
+        if self.wait_event_name:
+            ret += "- wait event parameters: %s\n" % self.wait_event_name
 
         ret += "- AWR report: %s\n" % self.awr_report
         ret += "- AWR summary reports: %s\n" % self.awr_summary
@@ -891,3 +897,31 @@ order by instance_number, snap_id
                                 end_time=self.end_time,
                                 rt_perfhub_session=self.rt_perfhub_session,
                                 awr_perfhub_session=self.awr_perfhub_session)
+
+    def get_wait_event_params(self):
+        we = "Wait event"
+        stmts = """set pagesi 100 linesi 255 trimsp on heading off
+
+        select '%s: ' || name || ' ==> P1: ' || parameter1 || ';  P2: ' || 
+          parameter2 || ';  P3: ' || parameter3 my_results 
+        from v$event_name 
+        where name like '%s'
+        /
+
+        """ % (we, self.wait_event_name)
+        sql = SqlPlus(con=self.db_con,
+                      stmts=stmts,
+                      out_dir=self.out_dir,
+                      verbose=self.verbose)
+        out = sql.run(silent=True)
+        found = False
+        for line in out:
+            if line.find(we) == 0:
+                print(line)
+                found = True
+
+        if not found:
+            print("Error: wait event '%s' not found. " % self.wait_event_name)
+            for line in out:
+                if len(line.strip()) > 0:
+                    print(line)

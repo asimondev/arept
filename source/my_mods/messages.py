@@ -13,6 +13,8 @@ SQL Statement details:
  - sql_details: Get DBMS_SQLTUNE.REPORT_SQL_DETAIL() output for SQL statement.
  - get_sql_id : Get SQL_ID, child number etc for the specified SQL statement.
  - sql_shared_cursor: Get output from V$SQL_SHARED_CURSOR.
+ - check_sql_id [SQL_ID [Instance_Number]
+   => Select tuning details from V$SQL for this SQL_ID.
  
 SQL Monitor:
  - awr_sql_monitor     : Get SQL Monitor output from AWR.

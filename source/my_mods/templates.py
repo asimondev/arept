@@ -1,7 +1,8 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-from .utils import file_created
+from .utils import file_created, get_instance_predicate
+
 
 def print_template(name, out_dir, arept_args):
     t = Template(name=name, out_dir=out_dir, arept_args=arept_args)
@@ -34,7 +35,8 @@ class Template:
             'awr_baseline': self.awr_sql_plan_baseline,
             'hinted_baseline': self.hinted_sql_plan_baseline,
             'get_sql_id': self.get_sql_id,
-            'sql_shared_cursor': self.get_sql_shared_cursor
+            'sql_shared_cursor': self.get_sql_shared_cursor,
+            'check_sql_id': self.check_sql_id
         }
 
     def __str__(self):
@@ -239,7 +241,7 @@ define my_table=...
 set echo on pagesi 100 linesi 256 trimsp on
 set long 500000 longchunk 1000
 
-set verify on
+set verify off
 spool meta_table_%s_%s.log
 
 select dbms_metadata.get_ddl(object_type=>'TABLE',name=>upper('%s'),schema=>upper('%s')) from dual
@@ -249,6 +251,10 @@ select dbms_metadata.get_dependent_ddl(object_type=>'INDEX',base_object_name=>up
 /
 
 select dbms_metadata.get_dependent_ddl(object_type=>'CONSTRAINT',base_object_name=>upper('%s'),base_object_schema=>upper('%s')) from dual
+/
+
+select count(*) from dba_triggers 
+where table_name = upper('%s') and table_owner = upper('%s')
 /
 
 select round(sum(bytes)/(1024*1024), 0) mb from dba_segments 
@@ -263,13 +269,25 @@ select count(*) from dba_segments
 where segment_name = upper('%s') and owner = upper('%s') and segment_type = 'TABLE PARTITION'
 /
 
+select round(sum(bytes)/(1024*1024), 0) mb from dba_segments 
+where segment_name = upper('%s') and owner = upper('%s') and segment_type = 'TABLE SUBPARTITION'
+/
+
+select count(*) from dba_segments 
+where segment_name = upper('%s') and owner = upper('%s') and segment_type = 'TABLE SUBPARTITION'
+/
+
 spool off 
 """
 
         stmts_out = stmts % ("arept", "arept", "...", "...", "...", "...",
+                             "...", "...", "...", "...", "...", "...",
                              "...", "...", "...", "...",
                              "...", "...", "...", "...")
         stmts_file = self.header + def_vars + stmts % ("&my_owner.", "&my_table.",
+                                                       "&my_table", "&my_owner",
+                                                       "&my_table", "&my_owner",
+                                                       "&my_table", "&my_owner",
                                                        "&my_table", "&my_owner",
                                                        "&my_table", "&my_owner",
                                                        "&my_table", "&my_owner",
@@ -899,15 +917,27 @@ from v$sql s JOIN dba_sql_plan_baselines b on
 
     def change_spm(self):
         stmts = """
+-- Usage: change_baseline.sql after changing the PL/SQL code.
+
+spool change_baseline.log
 set echo on
+set serveroutput on
 
 -- Change / enable /disable created SPM:
--- variable v_plans number
--- :v_plans := dbms_spm.alter_sql_plan_baseline(sql_handle => ...,
---     plan_name => ..., 
---  ==>   attribute_name => 'enabled',  attribute_value => 'NO');
---  ==>   attribute_name => 'fixed', attribute_value => 'YES');
--- dbms_output.put_line('Number of changed SPMs: ' || :v_plans);
+/*
+declare
+  l_plans pls_integer;
+begin
+  l_plans := dbms_spm.alter_sql_plan_baseline(
+    sql_handle => ...,
+    plan_name => ..., 
+--  attribute_name => 'enabled',  attribute_value => 'YES');
+--  attribute_name => 'fixed', attribute_value => 'YES');
+  dbms_output.put_line('Number of changed SPMs: ' || l_plans);
+end;
+/
+*/
+spool off
 """
         return stmts
 
@@ -1063,14 +1093,15 @@ end;
 
     def awr_sql_plan_baseline(self):
         create_spm = """
--- Uncomment this block, if you want to pass parameters to this script.
--- define my_begin_snap='&1'
--- define my_end_snap='&2'
--- define my_sql_id='&3'
+-- Usage: @create_awr_baseline SQL_ID Begin_Snap_ID End_Snap_ID         
+define my_sql_id='&1'
+define my_begin_snap=&2
+define my_end_snap=&3
 
-define my_begin_snap=...
-define my_end_snap=...
-define my_sql_id=...
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_sql_id=...
+-- define my_begin_snap=...
+-- define my_end_snap=...
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 
@@ -1085,15 +1116,18 @@ DBMS_SPM.LOAD_PLANS_FROM_AWR
  RETURN PLS_INTEGER;
 */
 
-set echo on
+set echo on verify off
 set serveroutput on 
+
+spool create_awr_baseline_&my_sql_id..log
 
 -- Load SQL execution plan(s) from AWR for the specified SQL_ID.
 
 declare
   l_plans pls_integer;
 begin
-  l_plans := dbms_spm.load_plans_from_awr(begin_snap => &my_begin_snap,
+  l_plans := dbms_spm.load_plans_from_awr(
+    begin_snap => &my_begin_snap,
     end_snap => &my_end_snap,
     basic_filter => 'sql_id = ''&my_sql_id''',
     fixed => 'NO'); /* Use YES to load this plan as fixed. */
@@ -1101,21 +1135,53 @@ begin
   dbms_output.put_line('Number of plans loaded: ' || l_plans);
 end;
 /
-
+spool off
 """
-        stmts = self.header + create_spm + self.select_spm_last_hour() + self.change_spm()
+        stmts = self.header + create_spm
         self.write_file("create_awr_baseline", stmts)
+
+        stmts = self.header + self.select_spm_last_hour()
+        self.write_file("last_baselines", stmts)
+
+        stmts = self.header + self.change_spm()
+        self.write_file("change_baseline", stmts)
 
     def select_spm_last_hour(self):
         stmts = """
+-- Usage: @last_baselines.sql
+
+alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
+
+spool check_last_baselines.log
+set echo on pagesi 100 linesi 100 trimsp on
 
 -- SPMs created in last hour
-select b.sql_handle, b.plan_name, b.enabled, b.accepted, b.fixed, b.origin, b.creator, 
-  b.created, b.last_modified, b.last_executed, b.sql_text
+select b.sql_handle, b.plan_name, b.enabled, b.accepted, b.fixed 
 from dba_sql_plan_baselines b
 where b.created > sysdate - 1/24
 order by created 
 /
+
+select b.sql_handle, b.plan_name, b.origin, b.creator 
+from dba_sql_plan_baselines b
+where b.created > sysdate - 1/24
+order by created 
+/
+
+select b.sql_handle, b.plan_name, b.created, b.last_modified, b.last_executed
+from dba_sql_plan_baselines b
+where b.created > sysdate - 1/24
+order by created 
+/
+
+/*
+select b.sql_handle, b.sql_text
+from dba_sql_plan_baselines b
+where b.sql_handle = ... 
+  and rownum <= 1;
+*/
+
+spool off
 """
         return stmts
 
@@ -1310,3 +1376,58 @@ spool off
 """ % (stmt, reason_stmt)
 
         return stmts
+
+    def check_sql_id(self):
+        # Default positional parameters SQL_ID Instance
+        (sql_id, inst) = ("...", "sys_context('userenv', 'instance')")
+        if len(self.arept_args) >= 1:
+            sql_id = self.arept_args[0]
+        if len(self.arept_args) >= 2:
+            inst = self.arept_args[1]
+        def_vars = """set echo on pagesi 100 linesi 256 trimsp on verify off
+
+define my_sql_id=&1
+define my_inst=sys_context('userenv','instance')
+-- define my_inst=&2
+-- Set my_inst to NULL for all instances.
+-- 
+-- Set my_inst to 1 for single instance databases.
+-- define my_inst=1
+
+-- Uncomment this block, if you don't want to pass parameters to this script.
+-- define my_sql_id=...
+-- define my_inst=1 or sys_context('userenv','instance')
+
+spool check_sql_id_&my_sql_id..log
+"""
+
+        sel_stmt = """
+select distinct parsing_schema_name, service, module, action 
+from gv$sql where sql_id = '%s'
+/
+"""
+        stmts_out = sel_stmt % sql_id
+        stmts_file = sel_stmt % "&my_sql_id"
+
+        sel_stmt = """
+select inst_id, sql_id, child_number, con_id, executions execs
+from gv$sql
+where """
+
+        stmts_out += sel_stmt + """sql_id = '%s' and inst_id = %s
+/
+""" % (sql_id, get_instance_predicate("inst_id", inst))
+        stmts_file += self.header + def_vars + sel_stmt + """sql_id = '&my_sql_id' and 
+inst_id = %s
+/
+
+select a.instance_number, a.instance_name, a.host_name, a.status
+from gv$instance a
+order by inst_id
+/
+
+spool off
+""" % get_instance_predicate("inst_id", "&my_inst")
+
+        print(stmts_out)
+        self.write_file("check_sql_id", stmts_file)
