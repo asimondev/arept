@@ -120,7 +120,7 @@ select a.sql_id, a.child_number, a.executions execs,
   a.plan_hash_value phv, a.full_plan_hash_value fphv, 
   a.inst_id, a.con_id, a.sql_text
 from gv$sql a
-where a.sql_text like '&my_sql_text'
+where a.sql_text like '%&my_sql_text%'
 -- and a.sql_id = ...
 -- and a.inst_id = ...
 / 
@@ -596,6 +596,7 @@ end;
 /
 
 """
+
         report_task = self.get_report_tuning_task()
         task_name = "AREPT_PROFILE_01"
         stmts = self.header + create_task % task_name
@@ -603,6 +604,7 @@ end;
 
         stmts = self.header + report_task % task_name
         self.write_file("get_sql_profile", stmts)
+
 
     def awr_sql_profile(self):
         create_task = """
@@ -617,24 +619,10 @@ define my_end_snap_id=...
 define my_sql_id=...
 define my_task='%s'
 
-/*        
-DBMS_SQLTUNE.CREATE_TUNING_TASK (
-  begin_snap       IN NUMBER,
-  end_snap         IN NUMBER,
-  sql_id           IN VARCHAR2,
-  plan_hash_value  IN NUMBER    := NULL,
-  scope            IN VARCHAR2  := SCOPE_COMPREHENSIVE,
-  time_limit       IN NUMBER    := TIME_LIMIT_DEFAULT,
-  task_name        IN VARCHAR2  := NULL,
-  description      IN VARCHAR2  := NULL,
-  con_name         IN VARCHAR2  := NULL,
-  dbid             IN NUMBER    := NULL,
-  database_link_to IN VARCHAR2  := NULL)
-RETURN VARCHAR2;
-*/
-
 set echo on
 set serveroutput on 
+
+spool s01_start_task.log
 
 variable p_begin_snap_id number
 variable p_end_snap_id number
@@ -656,6 +644,23 @@ print p_task
 
 -- Create a new advisor task.
 
+/*        
+DBMS_SQLTUNE.CREATE_TUNING_TASK (
+  begin_snap       IN NUMBER,
+  end_snap         IN NUMBER,
+  sql_id           IN VARCHAR2,
+  plan_hash_value  IN NUMBER    := NULL,
+  scope            IN VARCHAR2  := SCOPE_COMPREHENSIVE,
+  time_limit       IN NUMBER    := TIME_LIMIT_DEFAULT,
+  task_name        IN VARCHAR2  := NULL,
+  description      IN VARCHAR2  := NULL,
+  con_name         IN VARCHAR2  := NULL,
+  dbid             IN NUMBER    := NULL,
+  database_link_to IN VARCHAR2  := NULL)
+RETURN VARCHAR2;
+*/
+
+
 declare
   l_task_name varchar2(128);
 begin
@@ -664,19 +669,30 @@ begin
     end_snap => :p_end_snap_id,
     sql_id => :p_sql_id, 
     task_name => :p_task);
-  dbms_output.put_line('Created new task: ' || l_task_name);
+  dbms_output.put_line('Created a new task: ' || l_task_name);
   :p_task := l_task_name;
 end;
 /
 
 """
         report_task = self.get_report_tuning_task()
-        task_name = "AREPT_PROFILE_01"
-        stmts = self.header + create_task % task_name + self.get_check_tuning_task()
-        self.write_file("awr_start_sql_profile", stmts)
+        task_name = "AREPT_AWR_PROFILE_01"
+        stmts = self.header + create_task % task_name + \
+                self.get_check_tuning_task() + "\nspool off\n"
+        self.write_file("s01_start_task", stmts)
 
         stmts = self.header + report_task % task_name
-        self.write_file("awr_get_sql_profile", stmts)
+        self.write_file("s02_get_report", stmts)
+
+        stmts = self.header + self.check_tuning_task(task_name)
+        self.write_file("check_task", stmts)
+
+        print("\n => Use the s01_start_task.sql script to start the task. The "
+              "script s03_get_report.sql should be used later to fetch the ready "
+              "report. You can check the running task with the script check_task.sql.")
+        print("\n => If you want to change the task name, don't forget to do it in "
+              "all generated scripts. You can consider to adjust the default "
+              "timeout value (600 seconds) for your task.")
 
     def get_check_tuning_task(self):
         stmts = """
@@ -722,13 +738,39 @@ alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
 
 -- Check task progress.
 
-select task_name, task_id, status, created, last_modified, execution_start, execution_end
+select task_id, task_name, status, created, last_modified, execution_start, execution_end
 from user_advisor_tasks where task_name = :p_task
 /
         
 """
         return stmts
-    
+
+    def check_tuning_task(self, task_name):
+        stmts = """
+-- Use this script to check the status of advisor task.
+-- You have to set the variable p_task before running this script.
+
+-- Uncomment the line below, if you want to pass parameter to this script.
+--define p_task='&1'
+define p_task='%s'
+
+col task_id format 999999
+col task_name format a25
+col status_message format a33
+
+select task_id, task_name, status, status_message
+from   user_advisor_log 
+where task_name = '&p_task'
+/
+
+select task_id, task_name, status, created, last_modified, execution_start, execution_end
+from user_advisor_tasks where task_name = :p_task
+/
+
+""" % task_name
+
+        return stmts
+
     def get_report_tuning_task(self):
         stmts = """
 define my_task='%s'
@@ -746,7 +788,7 @@ end;
 /
 
 set echo off pagesi 1000 linesi 256 trimsp on trim on
-set long 100000 longchunksize 1000000
+set long 500000 longchunksize 1000000
 set serveroutput on
 
 spool sql_profile.log

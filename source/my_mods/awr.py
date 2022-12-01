@@ -29,6 +29,15 @@ def print_awr_sql(sql_id=None, begin_id=None, end_id=None,
 
     sql.get_mon_list()
 
+    print("\n => Use *hist_reports* files to check for available SQL Monitor "
+          "reports for this SQL statement. The important columns are:")
+    print("""- RID(REPORT_ID): report ID of this report
+- KEY1          : SQL_ID for this statement
+- KEY2          : SQL execution ID for this statement
+- REPORT_SUMMARY: report summary
+- COMPONENT_NAME: 'sqlmonitor'
+""")
+
 
 class AWRSQL:
     def __init__(self,
@@ -156,7 +165,7 @@ alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
 
 %s 
 
-select report_id rid, key1, key2, period_start_time, period_end_time 
+select report_id rid, key1, key2, period_start_time, period_end_time  
 from dba_hist_reports 
 where key1 = '%s' and component_name = 'sqlmonitor' and snap_id between %s and %s 
 order by period_start_time
