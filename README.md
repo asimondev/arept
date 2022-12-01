@@ -13,6 +13,7 @@ Depending on your Python version (2 or 3), you should start AREPT using `./arept
 
 ```
 ./arept.py -h
+ arept.py -h
 Usage: arept.py [options]
 
 Options:
@@ -46,14 +47,33 @@ Options:
                         hh24:mi | now}
   --awr-sql-id=AWR_SQL_ID
                         SQL_IDs in AWR
-  --awr-sql-format=AWR_SQL_FORMAT
-                        Additional AWR SQL format options.
+  --awr-report          Get AWR reports
+  --awr-summary         Get only one AWR report for the whole interval.
+  --global-awr-report   Get global AWR reports
+  --global-awr-summary  Get global AWR reports
+  --addm-report         Get ADDM reports
+  --rt-addm-report      Get real-time ADDM report
+  --ash-report          Get ASH reports
+  --global-ash-report   Get global ASH reports
+  --rt-perfhub-report   Get real-time performance hub report
+  --awr-perfhub-report  Get AWR performance hub report
+  --rt-perfhub-sql=RT_PERFHUB_SQL
+                        Get real-time performance hub SQL statement report
+  --awr-perfhub-sql=AWR_PERFHUB_SQL
+                        Get AWR performance hub SQL statement report
+  --rt-perfhub-session  Get real-time performance hub session report
+  --awr-perfhub-session
+                        Get AWR performance hub session report
   --parallel=PARALLEL   Number of parallel AWR/ADDM reports
   --sql-id=SQL_ID       Cursor SQL_ID in shared library
   --sql-child-number=SQL_CHILD_NUMBER
                         Cursor child nuber in shared library
   --sql-format=SQL_FORMAT
-                        Additional SQL format options
+                        Format option in DBMS_XPLAN.DISPLAY_CURSOR like basic,
+                        typical, serial, all, adaptive. Default: typical
+  --sid=SID             Session SID number.
+  --serial=SERIAL       Session serial number.
+  --instance=INSTANCE   Instance number (0 - current instance).
   --cleanup             "rm -rf *" for existing output directory
   -v, --verbose         verbose
   --begin-snap-id=BEGIN_SNAP_ID
@@ -63,12 +83,13 @@ Options:
   --get-wait-event=GET_WAIT_EVENT
                         Get wait event parameters description
   -t TEMPLATE, --template=TEMPLATE
-                        {osproc | my_sql_trace | ses_sql_trace | meta_table |
-                        sql_details | awr_sql_monintor | awr_sql_monitor_list
-                        | sql_monitor | sql_monitor_list |sql_profile |
-                        awr_sql_profile | sql_baseline | awr_baseline |
-                        hinted_baseline | get_awr_snap_ids | hidden_parameters
-                        | get_sql_id }
+                        {process | my_sql_trace | ses_sql_trace | meta_table |
+                        meta_role | sql_details | awr_sql_monintor |
+                        awr_sql_monitor_list | sql_monitor | sql_monitor_list
+                        |sql_profile | awr_sql_profile | sql_baseline |
+                        awr_baseline | hinted_baseline | get_awr_snap_ids |
+                        hidden_parameters | get_sql_id | sql_shared_cursor |
+                        check_sql_id }
   --template-help       Show description of AREPT templates.
 ```
 
@@ -105,7 +126,7 @@ For instance, you would have to insert your SID and SERIAL# etc.
 ### SQL Plan Details.
 
 You can use AREPT to get SQL exection plan and other details for the SQL statement
-either in library cache or in AWR:
+ in the library cache:
 ```
 ./arept.py --sql-id ayfpfz93vnvt1
 Output directory: /home/oracle/arept/arept_output
@@ -123,14 +144,22 @@ Output directory: /home/oracle/arept/arept_output
  - File sql_id_ayfpfz93vnvt1_mon_report_active.html created.
 ```
 
+### AWR SQL Plan Details.
+
+Use AREPT to get SQL exection plan and other details from AWR. The specified SQL_ID 
+will be also checked in DBA_HIST_REPORTS for available SQL Monitor reports. Per default the 
+reports in both HTML and text format will be generated. The option *--cleanup* will remove 
+all available files in the specified output directory **test01** before starting AREPT.
+
 ```
-./arept.py --awr-sql-id  0b65shgchks4g --begin-snap-id 75 --end-snap-id 76
-Output directory: /home/oracle/arept/arept_output
- - File awr_sql_id_0b65shgchks4g_inst_1_report.txt created.
- - File awr_sql_id_0b65shgchks4g_inst_1_report.html created.
- - File awr_sql_id_0b65shgchks4g_hist_reports.txt created.
- - File awr_sql_id_0b65shgchks4g_hist_reports.html created.
+arept.py -b "2022-11-30 21:00" -e "2022-11-30 22:15" --awr-sql-id btqubgr940awu -o test01 --cleanup
+Output directory: test01
+ - File test01/awr_sql_id_btqubgr940awu_inst_1_report.txt created.
+ - File test01/awr_sql_id_btqubgr940awu_inst_1_report.html created.
+ - File test01/awr_sql_id_btqubgr940awu_hist_reports.txt created.
+ - File test01/awr_sql_id_btqubgr940awu_hist_reports.html created.
 ```
+
 
 ### Database Object Details.
 

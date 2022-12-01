@@ -325,7 +325,7 @@ rep_output from dual
 spool off 
 """
 
-        stmts_out = stmts % ("type")
+        stmts_out = stmts % "type"
         stmts_file = self.header + def_vars + stmts % "&my_type"
 
         print(stmts_out)

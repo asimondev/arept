@@ -37,7 +37,6 @@ def parse_args(arept_vers):
     parser.add_option("-e", "--end-time",
                       help="end time. Format: {yyyy-mm-dd hh24:mi | yyyy-mm-dd | hh24:mi | now}")
     parser.add_option("--awr-sql-id", help="SQL_IDs in AWR")
-    parser.add_option("--awr-sql-format", help="Additional AWR SQL format options.")
     parser.add_option("--awr-report", help="Get AWR reports",
                       action="store_true", default=False)
     parser.add_option("--awr-summary", help="Get only one AWR report for the whole interval.",
@@ -68,7 +67,8 @@ def parse_args(arept_vers):
                       type=int)
     parser.add_option("--sql-id", help="Cursor SQL_ID in shared library")
     parser.add_option("--sql-child-number", help="Cursor child nuber in shared library")
-    parser.add_option("--sql-format", help="Additional SQL format options")
+    parser.add_option("--sql-format", help="Format option in DBMS_XPLAN.DISPLAY_CURSOR like basic, typical, "
+                                                "serial, all, adaptive. Default: typical")
     parser.add_option("--sid", help="Session SID number.", type=int)
     parser.add_option("--serial", help="Session serial number.", type=int)
     parser.add_option("--instance", help="Instance number (0 - current instance).", type=int)
@@ -118,7 +118,7 @@ def parse_args(arept_vers):
         obj_file=options.obj_file,
         schema=options.schema,
         awr_sql=options.awr_sql_id,
-        awr_sql_format=options.awr_sql_format,
+        # awr_sql_format=options.awr_sql_format,
         awr_report=options.awr_report,
         awr_summary=options.awr_summary,
         global_awr_report=options.global_awr_report,
@@ -181,7 +181,7 @@ class ProgArgs:
                  obj_file=None,
                  schema=None,
                  awr_sql=None,
-                 awr_sql_format=None,
+                 # awr_sql_format=None,
                  awr_report=False,
                  awr_summary=False,
                  global_awr_report=False,
@@ -204,7 +204,7 @@ class ProgArgs:
                  instance_number=None,
                  template=None,
                  wait_event_name=None,
-                 arept_args=[]
+                 arept_args=None
                  ):
 
         self.config_file = config_file
@@ -246,7 +246,7 @@ class ProgArgs:
 
         self.awr_sql = awr_sql
         self.awr_sql_ids = []
-        self.awr_sql_format = awr_sql_format
+        # self.awr_sql_format = awr_sql_format
         self.awr_report = awr_report
         self.global_awr_report = global_awr_report
         self.global_awr_summary = global_awr_summary
@@ -298,8 +298,8 @@ class ProgArgs:
             ret += "- end_snap_id: %s\n" % self.end_snap_id
         if self.awr_sql:
             ret += "- AWR SQL_ID(s): %s\n" % self.awr_sql
-        if self.awr_sql_format:
-            ret += "- AWR SQL format: %s\n" % self.awr_sql_format
+        # if self.awr_sql_format:
+        #     ret += "- AWR SQL format: %s\n" % self.awr_sql_format
         ret += "- AWR report: %s\n" % self.awr_report
         ret += "- AWR summary reports: %s\n" % self.awr_summary
         ret += "- global AWR reports: %s\n" % self.global_awr_report
@@ -321,8 +321,8 @@ class ProgArgs:
             ret += " - SQL_ID: %s\n" % self.sql_id
         if self.sql_child:
             ret += " - SQL child number: %d\n" % self.sql_child
-        if self.awr_sql_format:
-            ret += " - SQL format: %s\n" % self.awr_sql_format
+        if self.sql_format:
+            ret += " - Format option: %s\n" % self.sql_format
 
         if self.out_dir:
             ret += "- out_dir: %s\n" % self.out_dir
@@ -403,6 +403,7 @@ class ProgArgs:
                 return
 
         elif self.awr_sql:
+            # self.awr_sql_format = self.check_awr_sql_format()
             self.awr_sql_ids = self.check_awr_sql_ids()
             if len(self.awr_sql_ids):
                 self.check_awr_interval()
@@ -482,6 +483,27 @@ class ProgArgs:
                 return lst
 
         return self.awr_sql_ids
+
+    # def check_awr_sql_format(self):
+    #     ret = ["text", "html"]
+    #     if self.awr_sql_format is None:
+    #         return ret
+    #
+    #     lst = [x.lower() for x in self.awr_sql_format.split(',')]
+    #     res = set(lst)
+    #     valid = True
+    #     if res:
+    #         formats = set(["html", "text"])
+    #         if res - formats:
+    #             valid = False
+    #     else:
+    #         valid = False
+    #
+    #     if valid:
+    #         return list(res)
+    #     else:
+    #         print("Error: wrong AWR SQL format parameter %s." % self.awr_sql_format)
+    #         sys.exit(1)
 
     # Return True, if Ok.
     def check_awr_interval(self):
@@ -731,9 +753,9 @@ class ProgArgs:
                 data['sql-format'] is not None):
             self.sql_format = data['sql-format']
 
-        if (self.wait_event_params is None and 'get-wait-event' in data and
+        if (self.wait_event_name is None and 'get-wait-event' in data and
                 data['get-wait-event'] is not None):
-            self.wait_event_params = data['get-wait-event']
+            self.wait_event_name = data['get-wait-event']
 
         if (self.template is None and 'template' in data and
                 data['template'] is not None):

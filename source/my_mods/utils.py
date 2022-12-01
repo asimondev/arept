@@ -7,14 +7,16 @@ import sys
 
 def desc_stmt(table, owner=None, size_before=80, size_after=256):
     tab_owner = owner + "." if owner else ""
+    obj = "%s%s" % (tab_owner, table)
     ret = """
 set linesize 80
 
-describe %s%s
+prompt DESCRIBE %s
+describe %s
 
 set linesize 256 
 
-""" % (tab_owner, table)
+""" % (obj, obj)
     return ret
 
 

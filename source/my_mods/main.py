@@ -42,7 +42,7 @@ def start_arept():
                   begin_snap_id=args.begin_snap_id,
                   end_snap_id=args.end_snap_id,
                   awr_sql_ids=args.awr_sql_ids,
-                  awr_sql_format=args.awr_sql_format,
+                  # awr_sql_format=args.awr_sql_format,
                   parallel=args.parallel,
                   awr_report=args.awr_report,
                   awr_summary=args.awr_summary,
@@ -61,7 +61,7 @@ def start_arept():
                   params=args.params,
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
-                  sql_format=args.awr_sql_format,
+                  sql_format=args.sql_format,
                   wait_event_name=args.wait_event_name,
                   arept_args=args.arept_args,
                   verbose=verbose)

@@ -81,21 +81,23 @@ class AWRSQL:
 
         return ret
 
+
     def print_text_report(self, inst_id):
-        file_name = "awr_sql_id_%s_inst_%s_report.txt" % (self.sql_id, inst_id)
+        file_name = "%s/awr_sql_id_%s_inst_%s_report.txt" % (
+            self.params['out_dir'], self.sql_id, inst_id)
         stmts = """set echo on pagesi 1000 linesi 256 trimsp on long 50000 longchunk 1000
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 
-spool %s/%s
+spool %s
 
 select output from table(
   dbms_workload_repository.awr_sql_report_text(
-  l_bid=>%s,l_eid=>%s,l_sqlid=>'%s',l_dbid=>%s,l_inst_num=>%s));
+  l_bid=>%s,l_eid=>%s,l_sqlid=>'%s',l_dbid=>%s,l_con_dbid=>%s,l_inst_num=>%s));
 
 spool off
-""" % (self.params['out_dir'], file_name, self.begin_id, self.end_id, self.sql_id,
-       self.params['dbid'], inst_id)
+""" % (file_name, self.begin_id, self.end_id, self.sql_id,
+       self.params['dbid'], self.params['con_dbid'], inst_id)
 
         run_sqlplus(con=self.params['db_con'],
                     pdb=self.params['pdb'],
@@ -105,7 +107,8 @@ spool off
                     file_name=file_name)
 
     def print_html_report(self, inst_id):
-        file_name = "awr_sql_id_%s_inst_%s_report.html" % (self.sql_id, inst_id)
+        file_name = "%s/awr_sql_id_%s_inst_%s_report.html" % (
+            self.params['out_dir'], self.sql_id, inst_id)
         stmts = """set echo off feedback off verify off termout on; 
 set pagesi 0 linesi 8000 trimsp on long 50000 longchunk 1000;
 set heading off 
@@ -113,11 +116,13 @@ set serveroutput ON SIZE UNLIMITED FORMAT WRAPPED
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 
-spool %s/%s
-select output from table(dbms_workload_repository.awr_sql_report_html(l_bid=>%s,l_eid=>%s,l_sqlid=>'%s',l_dbid=>%s,l_inst_num=>%s));
+spool %s
+select output from table(
+  dbms_workload_repository.awr_sql_report_html(
+  l_bid=>%s,l_eid=>%s,l_sqlid=>'%s',l_dbid=>%s,l_con_dbid=>%s,l_inst_num=>%s));
 spool off
-""" % (self.params['out_dir'], file_name, self.begin_id, self.end_id, self.sql_id,
-       self.params['dbid'], inst_id)
+""" % (file_name, self.begin_id, self.end_id, self.sql_id,
+       self.params['dbid'], self.params['con_dbid'], inst_id)
 
         run_sqlplus(con=self.params['db_con'],
                     pdb=self.params['pdb'],
@@ -129,7 +134,8 @@ spool off
 
     def get_mon_list(self):
         for fmt in self.params['out_format']:
-            name = "awr_sql_id_%s_hist_reports" % self.sql_id
+            name = "%s/awr_sql_id_%s_hist_reports" % (
+                self.params['out_dir'], self.sql_id)
             if fmt == "text":
                 file_name = name + ".txt"
                 fmt_stmts = """
@@ -143,7 +149,7 @@ set markup html on spool on
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -161,14 +167,13 @@ and snap_id between %s and %s order by period_start_time
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
-       desc_stmt("dba_hist_reports"),
+""" % (file_name, desc_stmt("dba_hist_reports"),
        self.sql_id, self.begin_id, self.end_id,
        self.sql_id, self.begin_id, self.end_id)
 
             run_sqlplus(con=self.params['db_con'],
                         pdb=self.params['pdb'],
-                        stmts=fmt_stmts,
+                        stmts=fmt_stmts + stmts,
                         out_dir=self.params['out_dir'],
                         verbose=self.verbose,
                         silent=True,

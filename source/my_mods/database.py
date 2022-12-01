@@ -38,7 +38,7 @@ class Database:
                  begin_time=None, end_time=None,
                  begin_snap_id=None, end_snap_id=None,
                  awr_sql_ids=[],
-                 awr_sql_format=None,
+                 # awr_sql_format=None,
                  awr_report=False,
                  awr_summary=False,
                  global_awr_report=False,
@@ -66,7 +66,7 @@ class Database:
         self.begin_snap_id = begin_snap_id
         self.end_snap_id = end_snap_id
         self.awr_sql_ids = awr_sql_ids
-        self.awr_sql_format = awr_sql_format
+        # self.awr_sql_format = awr_sql_format
 
         self.parallel = parallel
         self.awr_report = awr_report
@@ -102,6 +102,7 @@ class Database:
         self.version = None
         self.major_version = None
         self.dbid = None
+        self.con_dbid = None
         self.inst_id = None
         self.inst_name = None
         self.is_rac = None
@@ -166,6 +167,8 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
             ret += "- major_varsion: %s\n" % self.major_version
         if self.dbid:
             ret += "- DBID: %s\n" % self.dbid
+        if self.con_dbid:
+            ret += "- CON_DBID: %s\n" % self.con_dbid
         if self.inst_name:
             ret += "- Instance name: %s\n" % self.inst_name
         if self.inst_id:
@@ -275,7 +278,8 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 select 'CON_NAME: ' || sys_context('userenv', 'con_name') from dual;
 select 'IS_CDB: ' || nvl(sys_context('userenv', 'cdb_name'), 'FALSE') from dual;        
 select 'SES_USER: ' || sys_context('userenv', 'session_user') from dual;
-select 'DBID: ' || dbid from v$database;
+select 'DBID: ' || dbid  from v$database;
+select 'CON_DBID: ' || con_dbid  from v$database;
 select 'INSTANCE_ID: ' || sys_context('userenv', 'instance') from dual;
 select 'INSTANCE_NAME: ' || sys_context('userenv', 'instance_name') from dual;
 select 'IS_RAC: ' || value from v$system_parameter where name = 'cluster_database';
@@ -307,6 +311,10 @@ select 'IS_RAC: ' || value from v$system_parameter where name = 'cluster_databas
                 matchobj = re.match(r'\ADBID:\s+([\d]+)\s*\Z', line)
                 if matchobj:
                     self.dbid = matchobj.group(1)
+            if self.con_dbid is None:
+                matchobj = re.match(r'\ACON_DBID:\s+([\d]+)\s*\Z', line)
+                if matchobj:
+                    self.con_dbid = matchobj.group(1)
             if self.is_rac is None:
                 matchobj = re.match(r'\AIS_RAC:\s+([\w]+)\s*\Z', line)
                 if matchobj:
@@ -325,11 +333,12 @@ select 'IS_RAC: ' || value from v$system_parameter where name = 'cluster_databas
                     self.con_name is not None and
                     self.ses_user is not None and
                     self.dbid is not None and
+                    self.con_dbid is not None and
                     self.is_rac is not None and
                     self.inst_id is not None and self.inst_name is not None):
                 return
         else:
-            print("Error: can not find the database properties in SQL*Plus output>>>")
+            print("Error: can not find all database properties in SQL*Plus output>>>")
             print(out)
             sys.exit(1)
 
@@ -530,9 +539,7 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
 
     def awr_sql_reports(self, begin_id, end_id):
         params = self.set_default_params()
-        params = {
-            'awr_sql_format': self.awr_sql_format
-        }
+        # params['awr_sql_format'] = self.awr_sql_format
 
         for a in self.awr_sql_ids:
             try:
@@ -672,22 +679,8 @@ end;
         sys.exit(1)
 
     def sql_report(self):
-        params = {
-            'db_con': self.db_con,
-            'pdb': self.pdb,
-            'dbid': self.dbid,
-            'is_dba': self.is_dba,
-            'is_rac': self.is_rac,
-            'inst_id': self.inst_id,
-            'inst_name': self.inst_name,
-            'rac_inst_ids': self.rac_inst_ids,
-            'version': self.version,
-            'out_dir': self.out_dir,
-            'out_level': self.out_level,
-            'out_format': self.out_format,
-            'sql_format': self.sql_format,
-            'version': self.major_version
-        }
+        params = self.set_default_params()
+        params['sql_format'] = self.sql_format
 
         try:
             print_sql(sql_id=self.sql_id,
@@ -854,6 +847,7 @@ order by instance_number, snap_id
             'db_con': self.db_con,
             'pdb': self.pdb,
             'dbid': self.dbid,
+            'con_dbid': self.con_dbid,
             'instance_number': self.params['instance_number'],
             'is_dba': self.is_dba,
             'is_rac': self.is_rac,
@@ -861,6 +855,7 @@ order by instance_number, snap_id
             'inst_name': self.inst_name,
             'rac_inst_ids': self.rac_inst_ids,
             'version': self.version,
+            'major_version': self.major_version,
             'out_dir': self.out_dir,
             'out_level': self.out_level,
             'out_format': self.out_format,
