@@ -316,6 +316,9 @@ set echo on pagesi 10000 linesi 512 trimsp on trim on
 set long 500000 longchunk 1000 heading off feedback off
 set verify off echo off 
 
+-- my_type can be 'XML', 'TEXT', 'HTML', 'EM' or 'ACTIVE'.
+-- my_rid: Report ID from DBA_HIST_REPORTS
+
 -- TEXT: col rep_output for a512
 
 spool awr_sql_monitor.%s
