@@ -2,7 +2,7 @@ from .parse import parse_args
 from .database import Database
 from .templates import print_template
 
-AREPT_VERSION = "0.1.5"
+AREPT_VERSION = "0.1.6"
 
 verbose = False
 
