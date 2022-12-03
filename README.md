@@ -158,8 +158,16 @@ Output directory: test01
  - File test01/awr_sql_id_btqubgr940awu_inst_1_report.html created.
  - File test01/awr_sql_id_btqubgr940awu_hist_reports.txt created.
  - File test01/awr_sql_id_btqubgr940awu_hist_reports.html created.
-```
 
+ => Use *hist_reports* files to check for available SQL Monitor reports for this SQL statement. The important columns are:
+- RID(REPORT_ID): report ID of this report
+- KEY1          : SQL_ID for this statement
+- KEY2          : SQL execution ID for this statement
+- REPORT_SUMMARY: report summary
+- COMPONENT_NAME: 'sqlmonitor'
+
+ => You can use AREPT template awr_sql_monitor to select such a report. You need REPORT_ID and KEY1 to generate such a report.
+```
 
 ### Database Object Details.
 
@@ -226,18 +234,25 @@ change the execution plan using hints or optimizer parameters. The template *hin
 
 You can start SQL Tuning Advisor to get SQL profile for the SQL statement. 
 The corresponding SQL statement could be either in AWR or in the current library 
-cache. You have to start the advisor task and after completition check the report.
-That's why two different scripts will be generated:
+cache. You have to start the advisor task and after competition check the report.
+That's why different scripts will be generated:
 ```
 ./arept.py -t sql_profile     
  - File /home/oracle/arept/arept_output/start_sql_profile.sql created.
  - File /home/oracle/arept/arept_output/get_sql_profile.sql created.
 ```
 
+Get SQL profile from AWR.
 ```
-./arept.py -t awr_sql_profile
- - File /home/oracle/arept/arept_output/awr_start_sql_profile.sql created.
- - File /home/oracle/arept/arept_output/awr_get_sql_profile.sql created.
+arept.py -t awr_sql_profile -o awr_prof01      
+ - File awr_prof01/s01_start_task.sql created.
+ - File awr_prof01/s02_get_report.sql created.
+ - File awr_prof01/check_task.sql created.
+
+ => Use the s01_start_task.sql script to start the task. The script s02_get_report.sql should be used later to fetch the ready report. You can check the running task with the script check_task.sql.
+
+ => If you want to change the task name, don't forget to do it in all generated scripts. You can consider to adjust the default timeout value (600 seconds) for your task.
+
 ```
 
 ### Enable SQL Trace.
@@ -354,6 +369,6 @@ spool off
 Get description of wait event parameters from V$EVENT_NAME:
 ```
 ./arept.py --get-wait-event 'buffer busy%'
-Wait event: buffer busy waits ==> P1: file#;  P2: block#;  P3: class#
-Wait event: buffer busy ==> P1: group#;  P2: obj#;  P3: block#
+Wait event: buffer busy waits ==> P1: file#;  P2: block#;  P3: class#;	Wait class: Concurrency
+Wait event: buffer busy ==> P1: group#;  P2: obj#;  P3: block#;  Wait class: Other
 ```

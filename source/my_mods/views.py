@@ -84,7 +84,7 @@ from %s where view_name = upper('%s')""" % (tab_name, self.name)
         if self.owner is not None:
             stmt += " and owner = upper('%s')" % self.owner
         if self.owner is None and self.params['schema'] is not None:
-            stmt += " and owner = upper('%s')" % self.schema
+            stmt += " and owner = upper('%s')" % self.params['schema']
         stmt += ";"
         sql = SqlPlus(con=self.params['db_con'],
                       pdb=self.params['pdb'],
@@ -120,9 +120,9 @@ from user_views where view_name = upper('%s')""" % self.name
         return ret
 
     def get_view_metadata(self, owner, view):
-        file_name = "view_%s_%s_metadata.txt" % (owner, view)
+        file_name = "%s/view_%s_%s_metadata.txt" % (self.params['out_dir'], owner, view)
         stmts = """%s
-spool %s/%s
+spool %s
 
 set pagesi 100 linesi 256 trimsp on long 100000 longch 10000
 set serveroutput on 
@@ -133,7 +133,7 @@ exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'PRETTY',
 select dbms_metadata.get_ddl(object_type=>'VIEW',name=>'%s',schema=>'%s') from dual;
 
 spool off
-""" % (self.params['sqlp_set_metadata'], self.params['out_dir'], file_name,
+""" % (self.params['sqlp_set_metadata'], file_name,
         view, owner)
 
         sql = SqlPlus(con=self.params['db_con'],
@@ -149,7 +149,7 @@ spool off
 
     def get_view(self, owner, view):
         for fmt in self.params['out_format']:
-            name = "view_%s_%s" % (owner, view)
+            name = "%s/view_%s_%s" % (self.params['out_dir'], owner, view)
             if fmt == "text":
                 file_name = name + ".txt"
                 fmt_stmts = """
@@ -163,7 +163,7 @@ set markup html on spool on
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -181,7 +181,7 @@ select text from %s_views where owner = '%s' and view_name = '%s'
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        select_object(owner, view, "VIEW", self.view_prefix),
        desc_stmt("%s_views" % self.view_prefix),
        self.view_prefix, owner, view,

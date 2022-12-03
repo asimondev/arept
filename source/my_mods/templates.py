@@ -300,36 +300,41 @@ spool off
         self.write_file("meta_table", stmts_file)
 
     def awr_sql_monitor(self):
-        def_vars = """
+        out_vars = """
+-- my_rid is REPORT_ID column from DBA_HIST_REPORTS
+-- Type can be 'XML', 'TEXT', 'HTML', 'EM' or 'ACTIVE'.
+accept my_rid prompt 'Report ID: '
+accept my_type prompt 'Type: '
+"""
+        file_vars = """
+-- my_type can be 'XML', 'TEXT', 'HTML', 'EM' or 'ACTIVE'.
+-- my_rid: Report ID from DBA_HIST_REPORTS
 
 -- Uncomment this block, if you want to pass parameters to this script.
 -- define my_rid=&1
 -- define my_type='&2'
 
 define my_rid=...
--- Type can be 'XML', 'TEXT', 'HTML', 'EM' or 'ACTIVE'.
 define my_type=...
 """
-
         stmts = """        
+
 set echo on pagesi 10000 linesi 512 trimsp on trim on
-set long 500000 longchunk 1000 heading off feedback off
+set long 5000000 longchunk 1000 heading off feedback off
 set verify off echo off 
 
--- my_type can be 'XML', 'TEXT', 'HTML', 'EM' or 'ACTIVE'.
--- my_rid: Report ID from DBA_HIST_REPORTS
+-- TEXT output
+col rep_output for a512
 
--- TEXT: col rep_output for a512
-
-spool awr_sql_monitor.%s
-select dbms_auto_report.report_repository_detail(rid=>&my_rid, type=>'&my_type') 
-rep_output from dual
+spool awr_sql_monitor.&my_type
+select dbms_auto_report.report_repository_detail(
+  rid=>&my_rid, type=>'&my_type') rep_output from dual
 /
 spool off 
 """
 
-        stmts_out = stmts % "type"
-        stmts_file = self.header + def_vars + stmts % "&my_type"
+        stmts_out = out_vars + stmts
+        stmts_file = self.header + file_vars + stmts
 
         print(stmts_out)
         self.write_file("awr_sql_monitor", stmts_file)
@@ -691,7 +696,7 @@ end;
         self.write_file("check_task", stmts)
 
         print("\n => Use the s01_start_task.sql script to start the task. The "
-              "script s03_get_report.sql should be used later to fetch the ready "
+              "script s02_get_report.sql should be used later to fetch the ready "
               "report. You can check the running task with the script check_task.sql.")
         print("\n => If you want to change the task name, don't forget to do it in "
               "all generated scripts. You can consider to adjust the default "
@@ -766,8 +771,10 @@ from   user_advisor_log
 where task_name = '&p_task'
 /
 
+alter session set nls_date_format = 'dd-mon-yy hh24:mi:ss';
+
 select task_id, task_name, status, created, last_modified, execution_start, execution_end
-from user_advisor_tasks where task_name = :p_task
+from user_advisor_tasks where task_name = '&p_task'
 /
 
 """ % task_name
@@ -791,7 +798,7 @@ end;
 /
 
 set echo off pagesi 1000 linesi 256 trimsp on trim on
-set long 500000 longchunksize 1000000
+set long 5000000 longchunksize 1000000
 set serveroutput on
 
 spool sql_profile.log

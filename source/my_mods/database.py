@@ -369,8 +369,8 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
             print(out)
             sys.exit(1)
 
-    def table_ddls(self):
-        params = {
+    def set_ddl_params(self):
+        ret = {
             'schema': self.schema,
             'ses_user': self.ses_user,
             'db_con': self.db_con,
@@ -381,6 +381,11 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
             'out_level': self.out_level,
             'out_format': self.out_format
         }
+
+        return ret
+
+    def table_ddls(self):
+        params = self.set_ddl_params()
 
         for a in self.obj_tables:
             pos = a.find(".")
@@ -398,18 +403,8 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
                 print(ex)
 
     def index_ddls(self):
-        params = {
-            'schema': self.schema,
-            'ses_user': self.ses_user,
-            'db_con': self.db_con,
-            'pdb': self.pdb,
-            'is_dba': self.is_dba,
-            'version': self.version,
-            'out_dir': self.out_dir,
-            'out_level': self.out_level,
-            'out_format': self.out_format,
-            'sqlp_set_metadata': self.sqlp_set_metadata
-        }
+        params = self.set_ddl_params()
+        params['sqlp_set_metadata'] = self.sqlp_set_metadata
 
         for a in self.obj_indexes:
             pos = a.find(".")
@@ -468,18 +463,8 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
                 print(ix)
 
     def view_ddls(self):
-        params = {
-            'schema': self.schema,
-            'ses_user': self.ses_user,
-            'db_con': self.db_con,
-            'pdb': self.pdb,
-            'is_dba': self.is_dba,
-            'version': self.version,
-            'out_dir': self.out_dir,
-            'out_level': self.out_level,
-            'out_format': self.out_format,
-            'sqlp_set_metadata': self.sqlp_set_metadata
-        }
+        params = self.set_ddl_params()
+        params['sqlp_set_metadata'] = self.sqlp_set_metadata
 
         for a in self.obj_views:
             pos = a.find(".")
@@ -490,7 +475,7 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
                 owner = a[:pos]
                 view = a[pos+1:]
             try:
-                vw = print_view_ddl(owner=owner, view=view,
+                print_view_ddl(owner=owner, view=view,
                                        params=params,
                                        verbose=self.verbose)
 
@@ -498,18 +483,8 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
                 print(ix)
 
     def mat_view_ddls(self):
-        params = {
-            'schema': self.schema,
-            'ses_user': self.ses_user,
-            'db_con': self.db_con,
-            'pdb': self.pdb,
-            'is_dba': self.is_dba,
-            'version': self.version,
-            'out_dir': self.out_dir,
-            'out_level': self.out_level,
-            'out_format': self.out_format,
-            'sqlp_set_metadata': self.sqlp_set_metadata
-        }
+        params = self.set_ddl_params()
+        params['sqlp_set_metadata'] = self.sqlp_set_metadata
 
         for a in self.obj_mat_views:
             pos = a.find(".")
@@ -898,7 +873,8 @@ order by instance_number, snap_id
         stmts = """set pagesi 100 linesi 255 trimsp on heading off
 
         select '%s: ' || name || ' ==> P1: ' || parameter1 || ';  P2: ' || 
-          parameter2 || ';  P3: ' || parameter3 my_results 
+          parameter2 || ';  P3: ' || parameter3 || 
+          ';  Wait class: ' || wait_class my_results  
         from v$event_name 
         where name like '%s'
         /

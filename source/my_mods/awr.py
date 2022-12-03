@@ -37,7 +37,8 @@ def print_awr_sql(sql_id=None, begin_id=None, end_id=None,
 - REPORT_SUMMARY: report summary
 - COMPONENT_NAME: 'sqlmonitor'
 """)
-    print(" => You can use AREPT template awr_sql_monitor to select such a report.")
+    print(" => You can use AREPT template awr_sql_monitor to select such a "
+          "report. You need REPORT_ID and KEY1 to generate such a report.")
 
 
 class AWRSQL:

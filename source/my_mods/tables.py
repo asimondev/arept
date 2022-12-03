@@ -94,7 +94,7 @@ from %s where table_name = upper('%s')""" % (tab_name, self.table)
         if self.owner is not None:
             stmt += " and owner = upper('%s')" % self.owner
         if self.owner is None and self.params['schema'] is not None:
-            stmt += " and owner = upper('%s')" % self.schema
+            stmt += " and owner = upper('%s')" % self.params['schema']
         stmt += ";"
         sql = SqlPlus(con=self.params['db_con'],
                       pdb=self.params['pdb'],
@@ -139,13 +139,14 @@ from user_tables where table_name = upper('%s')""" % self.table
         #     return False
 
     def get_table_metadata(self, owner, table):
-        file_name = "table_%s_%s_metadata.txt" % (owner, table)
+        file_name = "%s/table_%s_%s_metadata.txt" % (
+            self.params['out_dir'], owner, table)
         stmts = """set pagesi 0 trimsp on long 50000 echo on
 set long 500000 longchunk 1000
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 
-spool %s/%s
+spool %s
 %s
 
 exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'SQLTERMINATOR',true);
@@ -158,7 +159,7 @@ select dbms_metadata.get_dependent_ddl(object_type=>'CONSTRAINT',base_object_nam
 select dbms_stats.report_col_usage(ownname=>'%s',tabname=>'%s') from dual; 
 
 spool off
-""" % (self.params['out_dir'], file_name, desc_stmt(table, owner),
+""" % (file_name, desc_stmt(table, owner),
        table, owner, table, owner, table, owner,
        owner, table)
 
@@ -184,20 +185,22 @@ spool off
 
     def get_table(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "%s/table_%s_%s." % (self.params['out_dir'],
+                                           owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -237,7 +240,7 @@ where owner = '%s' and segment_name = '%s' and segment_type = 'TABLE PARTITION'
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        select_object(owner, table, 'TABLE', self.tab_prefix),
        desc_stmt("%s_tables" % self.tab_prefix),
        self.tab_prefix, owner, table,
@@ -269,7 +272,8 @@ spool off
 
     def get_table_indexes(self, owner, table):
         for fmt in self.params['out_format']:
-            name = "table_%s_%s_indexes" % (owner, table)
+            name = "%s/table_%s_%s_indexes" % (self.params['out_dir'],
+                                               owner, table)
             if fmt == "text":
                 file_name = name + ".txt"
                 fmt_stmts = """
@@ -283,7 +287,7 @@ set markup html on spool on
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -301,7 +305,7 @@ order by index_name, column_position
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_indexes" % self.tab_prefix),
        self.tab_prefix, owner, table,
        desc_stmt("%s_ind_columns" % self.tab_prefix),
@@ -329,20 +333,22 @@ spool off
 
     def get_table_stats(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "%s/table_%s_%s_stats." % (self.params['out_dir'],
+                                              owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s_stats.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s_stats.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 %s
 
@@ -359,7 +365,7 @@ order by preference_name
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
             desc_stmt("%s_tab_statistics" % self.tab_prefix),
             self.tab_prefix, owner, table,
             desc_stmt("%s_tab_stat_prefs" % self.tab_prefix),
@@ -386,21 +392,23 @@ spool off
         # return ret
 
     def get_table_columns_stats(self, owner, table):
+        name = "%s/table_%s_%s_columns_stats." % (self.params['out_dir'],
+                                                     owner, table)
         for fmt in self.params['out_format']:
             if fmt == "text":
-                file_name = "table_%s_%s_columns_stats.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 longchunk 1000 echo on
 """
             else:
-                file_name = "table_%s_%s_columns_stats.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 longchunk 1000 echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -412,7 +420,7 @@ order by column_name
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_tab_col_statistics" % self.tab_prefix),
        self.tab_prefix, owner, table)
 
@@ -438,20 +446,22 @@ spool off
 
     def get_table_index_stats(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "%s/table_%s_%s_index_stats." % (
+                self.params['out_dir'], owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s_index_stats.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s_index_stats.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -463,7 +473,7 @@ order by index_name, partition_position, subpartition_position
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_ind_statistics" % self.tab_prefix),
        self.tab_prefix, owner, table)
 
@@ -489,20 +499,22 @@ spool off
 
     def get_table_histograms(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "%s/table_%s_%s_histograms." % (self.params['out_dir'],
+                                                   owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s_histograms.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s_histograms.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -514,7 +526,7 @@ order by column_name
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_tab_histograms" % self.tab_prefix),
        self.tab_prefix, owner, table)
 
@@ -540,20 +552,22 @@ spool off
 
     def get_table_part_stats(self, owner, table):
         for fmt in self.params['out_format']:
+            name = "%s/table_%s_%s_part_stats." % (
+                self.params['out_dir'], owner, table)
             if fmt == "text":
-                file_name = "table_%s_%s_part_stats.txt" % (owner, table)
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = "table_%s_%s_part_stats.html" % (owner, table)
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -571,7 +585,7 @@ order by partition_name, column_name
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_part_col_statistics" % self.tab_prefix),
        self.tab_prefix, owner, table,
        desc_stmt("%s_part_histograms" % self.tab_prefix),
@@ -599,21 +613,22 @@ spool off
 
     def get_table_subpart_stats(self, owner, table):
         for fmt in self.params['out_format']:
-            name = "table_%s_%s_subpart_stats" % (owner, table)
+            name = "%s/table_%s_%s_subpart_stats." % (
+                self.params['out_dir'], owner, table)
             if fmt == "text":
-                file_name = name + ".txt"
+                file_name = name + "txt"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on long 50000 echo on
 """
             else:
-                file_name = name + ".html"
+                file_name = name + "html"
                 fmt_stmts = """
 set pagesi 100 linesi 256 trimsp on echo on
 set markup html on spool on 
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -631,7 +646,7 @@ order by subpartition_name, column_name
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        desc_stmt("%s_subpart_col_statistics" % self.tab_prefix),
        self.tab_prefix, owner, table,
        desc_stmt("%s_subpart_histograms" % self.tab_prefix),

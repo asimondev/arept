@@ -94,7 +94,7 @@ from %s where mview_name = upper('%s')""" % (tab_name, self.mview)
         if self.owner is not None:
             stmt += " and owner = upper('%s')" % self.owner
         if self.owner is None and self.params['schema'] is not None:
-            stmt += " and owner = upper('%s')" % self.schema
+            stmt += " and owner = upper('%s')" % self.params['schema']
         stmt += ";"
         sql = SqlPlus(con=self.params['db_con'],
                       pdb=self.params['pdb'],
@@ -139,9 +139,10 @@ from user_mviews where mview_name = upper('%s')""" % self.mview
         #     return False
 
     def get_mview_metadata(self, owner, mview):
-        file_name = "mview_%s_%s_metadata.txt" % (owner, mview)
+        file_name = "%s/mview_%s_%s_metadata.txt" % (
+            self.params['out_dir'], owner, mview)
         stmts = """%s
-spool %s/%s
+spool %s
 
 exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'SQLTERMINATOR',true);
 exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'PRETTY',true);
@@ -149,7 +150,7 @@ exec dbms_metadata.set_transform_param(dbms_metadata.session_transform,'PRETTY',
 select dbms_metadata.get_ddl(object_type=>'MATERIALIZED_VIEW',name=>'%s',schema=>'%s') from dual;
 
 spool off
-""" % (self.params['sqlp_set_metadata'], self.params['out_dir'], file_name,
+""" % (self.params['sqlp_set_metadata'], file_name,
         mview, owner)
 
         sql = SqlPlus(con=self.params['db_con'],
@@ -174,7 +175,8 @@ spool off
 
     def get_mview(self, owner, mview):
         for fmt in self.params['out_format']:
-            name = "mview_%s_%s" % (owner, mview)
+            name = "%s/mview_%s_%s" % (self.params['out_dir'],
+                                       owner, mview)
             if fmt == "text":
                 file_name = name + ".txt"
                 fmt_stmts = """
@@ -188,7 +190,7 @@ set markup html on spool on
 """
 
             stmts = """
-spool %s/%s
+spool %s
 
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
@@ -206,7 +208,7 @@ select query from %s_mviews where owner = '%s' and mview_name = '%s'
 /
 
 spool off
-""" % (self.params['out_dir'], file_name,
+""" % (file_name,
        select_object(owner, mview, "MATERIALIZED VIEW", self.mview_prefix),
        desc_stmt("%s_mviews" % self.mview_prefix),
        self.mview_prefix, owner, mview,
