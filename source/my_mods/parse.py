@@ -28,8 +28,9 @@ def parse_args(arept_vers):
     parser.add_option("--output-format",
                       help="output format: text, html, active-html. Default: text,html")
     parser.add_option("--obj",
-                      help="object names: [table:][owner].name,..;index:[owner.]name..;"
-                           "index_only:[owner.]name..;view:[owner.]name...;mview:[owner.]name...")
+                      help="object names: [table:][owner].name,..;index:[owner.]name,..;"
+                           "index_only:[owner.]name,..;view:[owner.]name,...;"
+                           "mview:[owner.]name...;source:[owner.]name,...")
     parser.add_option("--obj-file", help="file name with objects")
     parser.add_option("--schema", help="default schema for objects")
     parser.add_option("-b", "--begin-time",
@@ -241,6 +242,7 @@ class ProgArgs:
         self.obj_index_tables = []
         self.obj_views = []
         self.obj_mat_views = []
+        self.obj_sources = []
         self.obj_file = obj_file
         self.schema = schema
 
@@ -677,6 +679,11 @@ class ProgArgs:
                     self.obj_mat_views = a[pos + 1:].split(",")
                     if len(self.obj_mat_views) == 0:
                         print("Error: wrong mat. view names in obj parameter: %s" % self.obj)
+                        sys.exit(1)
+                elif obj_type.lower() == "source":
+                    self.obj_sources = a[pos + 1:].split(",")
+                    if len(self.obj_sources) == 0:
+                        print("Error: wrong source names in obj parameter: %s" % self.obj)
                         sys.exit(1)
 
     def check_schema(self):

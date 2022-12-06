@@ -9,6 +9,7 @@ from .tables import print_table_ddls, TableNotFound
 from .indexes import print_index_ddls, IndexNotFound
 from .views import print_view_ddl, ViewNotFound
 from .mat_views import print_mat_view_ddls, MatViewNotFound
+from .sources import print_source_code, SourceNotFound
 from .utils import print_session_params
 
 from .awr import print_awr_sql, AWRSQLNotFound
@@ -34,6 +35,7 @@ class Database:
                  obj_index_tables=None,
                  obj_views=None,
                  obj_mat_views=None,
+                 obj_sources=None,
                  schema=None,
                  begin_time=None, end_time=None,
                  begin_snap_id=None, end_snap_id=None,
@@ -132,6 +134,7 @@ class Database:
         self.obj_index_tables = obj_index_tables
         self.obj_views = obj_views
         self.obj_mat_views = obj_mat_views
+        self.obj_sources = obj_sources
         self.schema = schema
         self.sqlp_set_metadata = """set pagesi 0 linesi 256 trimsp on long 50000 echo on
 set long 500000 longchunk 1000
@@ -225,6 +228,8 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
             ret += "- obj_views: %s\n" % self.obj_views
         if self.obj_mat_views:
             ret += "- obj_mat_views: %s\n" % self.obj_mat_views
+        if self.obj_sources:
+            ret += "- obj_sources: %s\n" % self.obj_sources
         if self.schema:
             ret += "- schema: %s\n" % self.schema
 
@@ -511,6 +516,26 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
 
             except MatViewNotFound as ix:
                 print(ix)
+
+    def source_code(self):
+        params = self.set_ddl_params()
+        params['sqlp_set_metadata'] = self.sqlp_set_metadata
+
+        for a in self.obj_sources:
+            pos = a.find(".")
+            if pos == -1:
+                owner = None
+                source = a
+            else:
+                owner = a[:pos]
+                source = a[pos+1:]
+            try:
+                print_source_code(owner=owner, source=source,
+                                       params=params,
+                                       verbose=self.verbose)
+
+            except SourceNotFound as sx:
+                print(sx)
 
     def awr_sql_reports(self, begin_id, end_id):
         params = self.set_default_params()

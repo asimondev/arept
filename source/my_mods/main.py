@@ -2,7 +2,7 @@ from .parse import parse_args
 from .database import Database
 from .templates import print_template
 
-AREPT_VERSION = "0.1.6"
+AREPT_VERSION = "0.2.0"
 
 verbose = False
 
@@ -36,6 +36,7 @@ def start_arept():
                   obj_index_tables=args.obj_index_tables,
                   obj_views=args.obj_views,
                   obj_mat_views=args.obj_mat_views,
+                  obj_sources=args.obj_sources,
                   schema=args.schema,
                   begin_time=args.begin_time,
                   end_time=args.end_time,
@@ -101,3 +102,6 @@ def start_arept():
 
     if db.obj_mat_views:
         db.mat_view_ddls()
+
+    if db.obj_sources:
+        db.source_code()
