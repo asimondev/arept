@@ -18,6 +18,7 @@ from .addm_report import generate_addm_reports, generate_rt_addm_report
 from .ash_report import generate_ash_report
 from .perfhub import generate_perfhub_report, generate_perfhub_sql_report, generate_perfhub_session_report
 from .shared_lib import print_sql, SQLNotFound
+from .resmgr import print_resource_plan, ResourcePlanNotFound
 
 
 class Database:
@@ -56,12 +57,14 @@ class Database:
                  awr_perfhub_sql=None,
                  rt_perfhub_session=False,
                  awr_perfhub_session=False,
+                 inst_ids=[],
                  params={},
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
                  wait_event_name=None,
                  arept_args = [],
+                 arept_flags={},
                  verbose=False):
         self.begin_time = begin_time
         self.end_time = end_time
@@ -85,6 +88,7 @@ class Database:
         self.awr_perfhub_sql = awr_perfhub_sql
         self.rt_perfhub_session = rt_perfhub_session
         self.awr_perfhub_session = awr_perfhub_session
+        self.inst_ids = inst_ids
 
         self.params = params
 
@@ -95,6 +99,7 @@ class Database:
         self.sql_format = sql_format
 
         self.arept_args = arept_args
+        self.arept_flags = arept_flags
 
         self.verbose = verbose
 
@@ -233,6 +238,11 @@ alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
         if self.schema:
             ret += "- schema: %s\n" % self.schema
 
+        if self.arept_flags:
+            ret += "- AREPT flags:\n"
+            for flag in self.arept_flags:
+                ret += "    %s: %s\n" % (flag, self.arept_flags[flag])
+
         return ret
 
     def select_version(self):
@@ -351,6 +361,17 @@ select 'IS_RAC: ' || value from v$system_parameter where name = 'cluster_databas
         if self.params['instance_number'] == 0:
             self.params['instance_number'] = self.inst_id
 
+    def set_instance_ids(self):
+        if not self.is_rac:
+            return
+
+        if not self.inst_ids:
+            return
+
+        if len(self.inst_ids) == 1 and self.inst_ids[0] == '0':
+            self.inst_ids[self.inst_id]
+            return
+
     def select_awr_rac_instances(self, begin_id, end_id):
         if not self.is_rac:
             return
@@ -373,6 +394,19 @@ from dba_hist_snapshot where dbid = %s and snap_id between %s and %s;
             print("Error: can not find RAC instances in SQL*Plus output>>>")
             print(out)
             sys.exit(1)
+
+        self.rac_inst_ids = self.check_rac_instances()
+
+    def check_rac_instances(self):
+        if not self.inst_ids:
+            return self.rac_inst_ids
+
+        for inst in self.inst_ids:
+            if inst not in self.rac_inst_ids:
+                print("Error: can not find instance %s in RAC instances: " % inst, self.rac_inst_ids)
+                sys.exit(1)
+
+        return self.inst_ids
 
     def set_ddl_params(self):
         ret = {
@@ -691,6 +725,17 @@ end;
         except SQLNotFound as ex:
             print(ex)
 
+    def resource_plan_report(self):
+        params = self.set_default_params()
+        flag = 'resource_plan'
+        params[flag] = self.arept_flags[flag]
+
+        try:
+            print_resource_plan(params=params, verbose=self.verbose)
+
+        except ResourcePlanNotFound as ex:
+            print(ex)
+
     def get_awr_report(self, begin_id, end_id, awr_summary, snap_ids):
         params = {
             'db_con': self.db_con,
@@ -758,7 +803,7 @@ end;
         for line in out:
             matchobj = pattern.search(line)
             if matchobj:
-                (snap_id_str, snap, inst, end_date, others) = line.split(':')
+                (snap, inst, end_date) = matchobj.group(1).split(':')
                 if inst in res:
                     res[inst].append((snap, end_date))
                 else:
@@ -851,6 +896,8 @@ order by instance_number, snap_id
             'instance_number': self.params['instance_number'],
             'is_dba': self.is_dba,
             'is_rac': self.is_rac,
+            'is_cdb': self.is_cdb,
+            'con_name': self.con_name,
             'inst_id': self.inst_id,
             'inst_name': self.inst_name,
             'rac_inst_ids': self.rac_inst_ids,

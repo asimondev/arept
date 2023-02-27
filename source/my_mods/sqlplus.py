@@ -74,6 +74,8 @@ class SqlPlus:
         fd, self.sql_file = tempfile.mkstemp(suffix='.sql',
                                              prefix=self.sql_file_prefix,
                                              dir=self.out_dir)
+        os.write(fd, b'set sqlprompt "SQL> "\n')
+
         if do_exit:
             os.write(fd, b"whenever sqlerror exit failure\n")
             os.write(fd, b"whenever oserror exit failure\n")
@@ -84,6 +86,8 @@ class SqlPlus:
             os.write(fd, b"connect / as sysdba\n")
         if self.pdb:
             os.write(fd, bytearray("alter session set container=" + self.pdb + ";\n", "utf-8"))
+
+        os.write(fd, b'set sqlprompt "SQL> "\n')
 
         if self.verbose:
             os.write(fd, b"set echo on\n")

@@ -1,8 +1,9 @@
 from .parse import parse_args
 from .database import Database
 from .templates import print_template
+from .utils import set_arept_header
 
-AREPT_VERSION = "0.2.0"
+AREPT_VERSION = "0.3.1"
 
 verbose = False
 
@@ -15,6 +16,7 @@ def set_verbose(flag):
 def start_arept():
     args = parse_args(AREPT_VERSION)
     set_verbose(args.verbose)
+    set_arept_header(AREPT_VERSION)
 
     if verbose:
         print(args)
@@ -59,17 +61,20 @@ def start_arept():
                   awr_perfhub_sql=args.awr_perfhub_sql,
                   rt_perfhub_session=args.rt_perfhub_session,
                   awr_perfhub_session=args.awr_perfhub_session,
+                  inst_ids=args.inst_ids,
                   params=args.params,
                   sql_id=args.sql_id,
                   sql_child=args.sql_child,
                   sql_format=args.sql_format,
                   wait_event_name=args.wait_event_name,
                   arept_args=args.arept_args,
+                  arept_flags=args.arept_flags,
                   verbose=verbose)
 
     db.select_version()
     db.select_properties()
     db.set_instance_number()
+    db.set_instance_ids()
 
     if verbose:
         print(db)
@@ -105,3 +110,6 @@ def start_arept():
 
     if db.obj_sources:
         db.source_code()
+
+    if db.arept_flags['resource_plan']:
+        db.resource_plan_report()

@@ -4,6 +4,23 @@ from __future__ import absolute_import
 import os.path
 import sys
 
+AREPT_HEADER=""
+
+def set_arept_header(ver):
+    global AREPT_HEADER
+    AREPT_HEADER="AREPT Ver. %s  (https://github.com/asimondev/arept)" % ver
+
+
+def get_arept_header():
+    return AREPT_HEADER
+
+def select_arept_header():
+    return """set feedback off heading off
+select '%s' from dual;
+set feedback on heading on
+prompt
+""" % AREPT_HEADER
+
 
 def desc_stmt(table, owner=None, size_before=80, size_after=256):
     tab_owner = owner + "." if owner else ""
@@ -73,3 +90,11 @@ def print_session_params(params):
 def get_instance_predicate(inst_column, my_inst):
     ret = "decode(%s, NULL, %s, %s)" % (inst_column, inst_column, my_inst)
     return ret
+
+
+def print_output(lines):
+    print("\nSQL*Plus output:")
+    print("==============================================================================")
+    for x in lines:
+        print(x)
+    print("==============================================================================\n")

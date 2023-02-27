@@ -1,7 +1,7 @@
 from __future__ import print_function
 from __future__ import absolute_import
 
-from .utils import file_created, get_instance_predicate
+from .utils import file_created, get_instance_predicate, get_arept_header, select_arept_header
 
 
 def print_template(name, out_dir, arept_args):
@@ -14,7 +14,7 @@ class Template:
         self.name = name
         self.out_dir = out_dir
         self.arept_args = arept_args
-        self.header = "\n-- Created by arept (see https://github.com/asimondev/arept)\n\n"
+        self.header = "-- Created by %s.\n\n" % get_arept_header()
 
         self.templates = {
             'process': self.print_process,
@@ -57,6 +57,8 @@ class Template:
         with open(file_name, "w") as fout:
             fout.write(stmts)
         file_created(file_name)
+
+        return file_name
 
     def print_process(self):
         # Default positional parameters SID Serial# Instance_ID
@@ -873,45 +875,69 @@ order by snap_id, instance_number
         self.write_file("get_awr_snap_ids", stmts_file)
 
     def get_hidden_parameters(self):
+        if len(self.arept_args) == 1:
+            param_name = self.arept_args[0]
+        else:
+            param_name = "Hidden_Parameter"
+
+        set_config = "set echo off pagesi 100 linesi 256 trimsp on verify off"
         def_vars = """
-set echo on pagesi 100 linesi 256 trimsp on verify off
+%s
 
 -- MOS Doc ID 315631.1
 -- 
--- Uncomment this block, if you want to pass parameters to this script.
--- define my_parameter=&1
+-- Uncomment this block, if you don't want to pass parameter to this script.
+-- define my_parameter=...
 
-define my_parameter=...
-"""
+define my_parameter=&1
+
+""" % set_config
 
         sel_stmt = """
-SELECT a.ksppinm "Parameter", b.KSPPSTDF "Default Value",
-       b.ksppstvl "Session Value", 
-       c.ksppstvl "Instance Value",
-       decode(bitand(a.ksppiflg/256,1),1,'TRUE','FALSE') IS_SESSION_MODIFIABLE,
-       decode(bitand(a.ksppiflg/65536,3),1,'IMMEDIATE',2,'DEFERRED',3,'IMMEDIATE','FALSE') IS_SYSTEM_MODIFIABLE
+
+col con_id for 999999
+col parameter for a35
+col default_value for a15
+col ses_value for a15
+col ins_value for a15
+col is_ses_mod for a10
+col is_sys_mod for a10
+      
+SELECT c.con_id, a.ksppinm parameter, b.KSPPSTDF default_value,
+       b.ksppstvl ses_value, 
+       c.ksppstvl ins_value,
+       decode(bitand(a.ksppiflg/256,1),1,'TRUE','FALSE') IS_SES_MOD,
+       decode(bitand(a.ksppiflg/65536,3),1,'IMMEDIATE',2,'DEFERRED',3,'IMMEDIATE','FALSE') IS_SYS_MOD
 FROM   x$ksppi a,
        x$ksppcv b,
        x$ksppsv c
 WHERE  a.indx = b.indx
 AND    a.indx = c.indx
--- a.ksppinm LIKE '/_clusterwide_global_transactions' escape '/'          
-AND    a.ksppinm LIKE '&my_parameter'
+AND    a.ksppinm LIKE '%s'
 /
-        
-"""
 
-        stmts_out = sel_stmt
-        stmts_file = self.header + def_vars + sel_stmt + """
+prompt Parameter Description
 
--- For finding ISPDB_MODIFIABLE :
+col parameter_description for a80
 
-SELECT a.ksppinm "Parameter",
-decode(bitand(ksppiflg/524288,1),1,'TRUE','FALSE') ISPDB_MODIFIABLE
+SELECT a.ksppinm parameter, a.ksppdesc parameter_description
+FROM   x$ksppi a
+WHERE  a.ksppinm LIKE '%s'
+/
+
+prompt PDB Modifiable?
+
+SELECT a.ksppinm parameter,
+decode(bitand(ksppiflg/524288,1),1,'TRUE','FALSE') ISPDB_MOD
 FROM x$ksppi a
-WHERE a.ksppinm LIKE '/_clusterwide_global_transactions' escape '/'          
+WHERE a.ksppinm LIKE '%s'        
 /
+
 """
+
+        stmts_out = "\n" + set_config + sel_stmt % (param_name, param_name, param_name)
+        stmts_file = self.header + def_vars + sel_stmt % ("&my_parameter",
+                                            "&my_parameter", "&my_parameter")
         print(stmts_out)
         self.write_file("hidden_parameters", stmts_file)
 
@@ -1300,6 +1326,7 @@ define my_inst_select="sys_context('userenv','instance')"
 -- define my_sql_id=...
 -- define my_inst=1 or sys_context('userenv','instance') or NULL
 """
+        undef_vars = "\nundefine my_sql_id my_inst my_inst_select\n\n"
 
         stmt = ("select a.* from gv$sql_shared_cursor a " +
                    "where a.inst_id = decode(&my_inst, NULL, a.inst_id, " +
@@ -1312,12 +1339,18 @@ define my_inst_select="sys_context('userenv','instance')"
                        "a.sql_id = ''&my_sql_id'' order by inst_id, con_id, child_number")
 
         pls = self.sql_shared_cursor_plsql(stmt, reason_stmt)
-        stmts_file = self.header + def_vars + pls
-        self.write_file("sql_shared_cursor", stmts_file)
+        stmts_file = self.header + def_vars + pls + undef_vars
+        file_name = self.write_file("sql_shared_cursor", stmts_file)
+
+        print("\nStart %s from SQL*Plus using SQL_ID as first "
+              "parameter.\n" % file_name)
 
     def sql_shared_cursor_plsql(self, stmt, reason_stmt):
-        stmts = """spool sql_shared_cursor_&my_sql_id..log
+        stmts = """define my_spool_file=sql_shared_cursor_&my_sql_id..log
+spool &my_spool_file
         
+%s
+
 declare
   l_sql_id varchar2(128) := '&my_sql_id';
   l_crs integer := dbms_sql.open_cursor;
@@ -1425,7 +1458,11 @@ set long 1000000 longch 1000 pagesi 1000 linesi 256 trimsp on
 select sql_fulltext from gv$sql where sql_id = '&my_sql_id' and rownum <= 1;
 
 spool off
-""" % (stmt, reason_stmt)
+
+prompt  ===> Spool file &my_spool_file created.
+prompt
+undefine my_spool_file
+""" % (select_arept_header(), stmt, reason_stmt)
 
         return stmts
 

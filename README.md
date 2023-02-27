@@ -34,9 +34,9 @@ Options:
   --output-format=OUTPUT_FORMAT
                         output format: text, html, active-html. Default:
                         text,html
-  --obj=OBJ             object names: [table:][owner].name,..;index:[owner.]na
-                        me..;index_only:[owner.]name..;view:[owner.]name...;mv
-                        iew:[owner.]name...
+  --obj=OBJ             object names: [table:][owner].name,..;index:[owner.]name,..;
+                           index_only:[owner.]name,..;view:[owner.]name,...;
+                           mview:[owner.]name...;source:[owner.]name,...
   --obj-file=OBJ_FILE   file name with objects
   --schema=SCHEMA       default schema for objects
   -b BEGIN_TIME, --begin-time=BEGIN_TIME
@@ -64,7 +64,10 @@ Options:
   --rt-perfhub-session  Get real-time performance hub session report
   --awr-perfhub-session
                         Get AWR performance hub session report
+  --instances=INSTANCES 
+                        Instances list (default: all instances; 0 - current instance)                      
   --parallel=PARALLEL   Number of parallel AWR/ADDM reports
+  --resource-plan       Get Resource Manager Plan
   --sql-id=SQL_ID       Cursor SQL_ID in shared library
   --sql-child-number=SQL_CHILD_NUMBER
                         Cursor child nuber in shared library
@@ -364,6 +367,44 @@ spool off
  - File /home/oracle/arept/arept_output/ses_sql_trace.sql created.
 ```
 
+### Check V$SQL_SHARED_CURSOR View.
+
+The dynamic view *V$SQL_SHARED_CURSOR* contains reasons for not sharing a particular cursor. 
+Unfortunately the output of this view is rather difficult to read. AREPT can help here as well.
+
+At first you would generate a script using AREPT template *sql_shared_cursor*:
+
+```
+arept.py -t sql_shared_cursor
+ - File /home/oracle/arept/arept_output/sql_shared_cursor.sql created.
+
+Start /home/oracle/arept/arept_output/sql_shared_cursor.sql from SQL*Plus using SQL_ID as first parameter.
+```
+
+Then we can ran this script from SQL*Plus:
+
+```
+SQL> @arept_output/sql_shared_cursor 8swypbbr0m372
+
+AREPT Ver. 0.3.0  (https://github.com/asimondev/arept)
+
+Output from GV$SQL_SHARED_CURSOR:
+- Inst. ID: 1 Child Number: 0  (Con-ID: 0)
+- Inst. ID: 1 Child Number: 1  OPTIMIZER_MISMATCH (Con-ID: 0)
+- Inst. ID: 1 Child Number: 2  OPTIMIZER_MISMATCH (Con-ID: 0)
+- Inst. ID: 1 Child Number: 3  OPTIMIZER_MISMATCH (Con-ID: 0)
+- Inst. ID: 1 Child Number: 4  OPTIMIZER_MISMATCH (Con-ID: 0)
+- Inst. ID: 1 Child Number: 5  OPTIMIZER_MISMATCH (Con-ID: 0)
+- Inst. ID: 1 Child Number: 6  OPTIMIZER_MISMATCH (Con-ID: 0)
+...
+```
+The output will be automatically saved into the spool file with SQL_ID suffix in the name:
+```
+oracle@rkol7db1> ls -l sql_shared_cursor*
+-rw-r--r-- 1 oracle oinstall 5586 27. Feb  22:03 sql_shared_cursor_8swypbbr0m372.log
+oracle@rkol7db1> 
+```
+
 ### Wait Event Parameters Description.
 
 Get description of wait event parameters from V$EVENT_NAME:
@@ -372,3 +413,65 @@ Get description of wait event parameters from V$EVENT_NAME:
 Wait event: buffer busy waits ==> P1: file#;  P2: block#;  P3: class#;	Wait class: Concurrency
 Wait event: buffer busy ==> P1: group#;  P2: obj#;  P3: block#;  Wait class: Other
 ```
+
+### Resource Manager Plan.
+
+Get Resource Manager Plan:
+
+`arept.py --resource-plan DEFAULT_PLAN`
+
+If you don't provide the plan name, then AREPT would display the current active plan. For the 
+current plan AREPT would also generate the description of the default maintenance plan. 
+
+For a multitenant database the default connection as SYSDBA would connect to CDB$ROOT and get 
+current CDB plans for a multitenant database.
+
+```
+arept.py --resource-plan 
+Output directory: /home/oracle/arept/arept_output
+Current active resource plan: CDBE02_PLAN
+Found following resource plans for maintenance windows
+ - DEFAULT_MAINTENANCE_PLAN
+ - File /home/oracle/arept/arept_output/cdb_resource_plan_CDBE02_PLAN_metadata.txt created.
+ - File /home/oracle/arept/arept_output/cdb_resource_plan_DEFAULT_MAINTENANCE_PLAN_metadata.txt created.
+```
+
+Use *--pdb* option to get current resource plans for the PDB using the default connect as SYSDBA.
+
+```
+arept.py --resource-plan --pdb CDBE02_PDB1
+Output directory: /home/oracle/arept/arept_output
+Current active resource plan: CDBE02_PDB1_PLAN
+Found following resource plans for maintenance windows
+ - DEFAULT_MAINTENANCE_PLAN
+ - File /home/oracle/arept/arept_output/resource_plan_CDBE02_PDB1_PLAN_metadata.txt created.
+ - File /home/oracle/arept/arept_output/resource_plan_DEFAULT_MAINTENANCE_PLAN_metadata.txt created.
+```
+
+### Get Hidden Database Parameters.
+
+You can use AREPT template option to generate a script for selecting both regular and hidden 
+database parameters.  
+
+```
+arept.py -t hidden_parameters            
+
+set echo off pagesi 100 linesi 256 trimsp on verify off
+...
+
+ - File /home/oracle/arept/arept_output/hidden_parameters.sql created.
+
+```
+
+This template generates both SQL statements for "Copy & Paste" and SQL script to get 
+database parameters. The parameter names are selected using LIKE Where clause, so that
+*'%'* meta characters are allowed.
+
+If you only want to use the "Copy & Paste" output, then you should specify the parameter
+name directly after the template option.
+
+`arept.py -t hidden_parameters _%reserved%pct`
+
+The generated output can be used to get the hidden database 
+parameter *_shared_pool_reserved_pct*. You can of course use the generated SQL script
+and provide the same parameter as a script parameter.

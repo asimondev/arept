@@ -64,8 +64,11 @@ def parse_args(arept_vers):
                       action="store_true", default=False)
     parser.add_option("--awr-perfhub-session", help="Get AWR performance hub session report",
                       action="store_true", default=False)
+    parser.add_option("--instances", help="Instances list (default: all instances; 0 - current instance)")
     parser.add_option("--parallel", help="Number of parallel AWR/ADDM reports",
                       type=int)
+    parser.add_option("--resource-plan", help="Get Resource Manager Plan",
+                      action="store_true", default=False)
     parser.add_option("--sql-id", help="Cursor SQL_ID in shared library")
     parser.add_option("--sql-child-number", help="Cursor child nuber in shared library")
     parser.add_option("--sql-format", help="Format option in DBMS_XPLAN.DISPLAY_CURSOR like basic, typical, "
@@ -85,9 +88,9 @@ def parse_args(arept_vers):
     parser.add_option("-t", "--template",
                       help="{process | my_sql_trace | ses_sql_trace | "
                            "meta_table | meta_role | sql_details | "
-                           "awr_sql_monintor | awr_sql_monitor_list | sql_monitor | sql_monitor_list |"
-                           "sql_profile | awr_sql_profile | sql_baseline | "
-                           "awr_baseline | hinted_baseline | "
+                           "awr_sql_monintor | awr_sql_monitor_list | sql_monitor | "
+                           "sql_monitor_list | sql_profile | awr_sql_profile | "
+                           "sql_baseline | awr_baseline | hinted_baseline | "
                            "get_awr_snap_ids | hidden_parameters | get_sql_id | "
                            "sql_shared_cursor | check_sql_id }")
     parser.add_option("--template-help", help="Show description of AREPT templates.",
@@ -134,6 +137,7 @@ def parse_args(arept_vers):
         awr_perfhub_sql=options.awr_perfhub_sql,
         rt_perfhub_session=options.rt_perfhub_session,
         awr_perfhub_session=options.awr_perfhub_session,
+        instances=options.instances,
         sql_id=options.sql_id,
         sql_child=options.sql_child_number,
         sql_format=options.sql_format,
@@ -142,6 +146,7 @@ def parse_args(arept_vers):
         instance_number=options.instance,
         template=options.template,
         wait_event_name=options.get_wait_event,
+        resource_plan=options.resource_plan,
         arept_args=args
     )
     prog_args.check_args()
@@ -197,6 +202,7 @@ class ProgArgs:
                  awr_perfhub_sql=None,
                  rt_perfhub_session=False,
                  awr_perfhub_session=False,
+                 instances=None,
                  sql_id=None,
                  sql_child=None,
                  sql_format=None,
@@ -205,6 +211,7 @@ class ProgArgs:
                  instance_number=None,
                  template=None,
                  wait_event_name=None,
+                 resource_plan=None,
                  arept_args=None
                  ):
 
@@ -234,6 +241,8 @@ class ProgArgs:
         self.verbose = is_verbose
         # set_verbose(False if is_verbose is None else is_verbose)
         self.parallel = parallel
+        self.instances = instances
+        self.inst_ids = []
         self.cleanup = cleanup if cleanup is not None else False
 
         self.obj = obj
@@ -276,6 +285,9 @@ class ProgArgs:
         self.arept_args = arept_args
 
         self.wait_event_name = wait_event_name
+        self.resource_plan = resource_plan
+
+        self.arept_flags={}
 
     def __str__(self):
         ret = "Class ProgArgs:\n"
@@ -347,6 +359,7 @@ class ProgArgs:
 
         if self.wait_event_name:
             ret += "- wait event parameters: %s\n" % self.wait_event_name
+        ret += " - resource manager plan: %s\n" % self.resource_plan
 
         if self.template:
             ret += "- template: %s\n" % self.template
@@ -372,8 +385,10 @@ class ProgArgs:
         self.check_addm()
         self.check_ash()
         self.check_perfhub()
+        self.check_instances()
         self.check_sql()
         self.check_template()
+        self.check_resource_plan()
 
         if self.parallel:
             cpus = multiprocessing.cpu_count()
@@ -454,6 +469,13 @@ class ProgArgs:
             print("Error: wrong performance hub interval.")
             sys.exit(1)
 
+    def check_instances(self):
+        if not self.instances:
+            return
+
+        for inst_id in self.instances.split(','):
+            self.inst_ids.append(inst_id)
+
     def check_addm(self):
         if not self.addm_report and not self.rt_addm_report:
             return
@@ -477,6 +499,15 @@ class ProgArgs:
     def check_sql(self):
         self.sql_child = str_to_int(self.sql_child,
                                     "Error: SQL child number %s must be a number.")
+
+    def check_resource_plan(self):
+        if self.resource_plan:
+            if self.arept_args:
+                self.arept_flags['resource_plan'] = self.arept_args[0]
+            else:
+                self.arept_flags['resource_plan'] = 'CURRENT'
+        else:
+            self.arept_flags['resource_plan'] = ''
 
     def check_awr_sql_ids(self):
         if self.awr_sql:

@@ -44,7 +44,7 @@ Others:
  - meta_role [Role]
     => Get role DDLs using DBMS_METADATA. 
  - get_awr_snap_ids : Get AWR snapshot interval IDs for specified time interval. 
- - hidden_parameters: Select database hidden parameters. 
+ - hidden_parameters [Parameter]: Select database hidden parameters. 
                     
 """
     print(text)

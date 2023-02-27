@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 
 from .sqlplus import SqlPlus
-from .utils import file_created, desc_stmt
+from .utils import file_created, desc_stmt, select_arept_header, get_arept_header
 
 
 class SQLNotFound(Exception): pass
@@ -100,13 +100,15 @@ class SQL:
 
 spool %s
 
+%s
+
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 
 select * from table(
   dbms_xplan.display_cursor(sql_id => '%s', cursor_child_no => %d, format => '%s'));
   
 spool off
-""" % (file_name, self.sql_id, self.child, self.fmt)
+""" % (file_name, select_arept_header(), self.sql_id, self.child, self.fmt)
 
         sql = SqlPlus(con=self.params['db_con'],
                       pdb=self.params['pdb'],
@@ -143,6 +145,8 @@ set markup html on spool on
             stmts = """
 spool %s
 
+prompt %s
+
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
 
@@ -164,7 +168,7 @@ select sql_fulltext from v$sql where sql_id = '%s' %s and rownum < 2
 /
 
 spool off
-""" % (file_name,
+""" % (file_name, get_arept_header(),
        self.sql_id, child_number, self.select_sql_quarantine(child_number),
        desc_stmt("v$sql"),
        self.sql_id, child_number,
@@ -222,6 +226,8 @@ set markup html on spool on
             stmts = """
 spool %s
 
+prompt %s
+
 alter session set nls_timestamp_format='yyyy-mm-dd hh24:mi:ss';
 alter session set nls_date_format='yyyy-mm-dd hh24:mi:ss';
 
@@ -238,7 +244,7 @@ select sql_fulltext from v$sqlarea where sql_id = '%s'
 /
 
 spool off
-""" % (file_name,
+""" % (file_name, get_arept_header(),
        self.sql_id,
        desc_stmt("v$sqlarea"),
        self.sql_id,
