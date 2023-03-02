@@ -903,7 +903,7 @@ col ins_value for a15
 col is_ses_mod for a10
 col is_sys_mod for a10
       
-SELECT c.con_id, a.ksppinm parameter, b.KSPPSTDF default_value,
+SELECT b.con_id, a.ksppinm parameter, b.KSPPSTDF default_value,
        b.ksppstvl ses_value, 
        c.ksppstvl ins_value,
        decode(bitand(a.ksppiflg/256,1),1,'TRUE','FALSE') IS_SES_MOD,

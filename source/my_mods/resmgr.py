@@ -247,7 +247,7 @@ from dba_rsrc_mapping_priority
 order by priority
 /
 
-col group_or_subplan for a20
+col group_or_subplan for a24
 col type for a15
 
 select group_or_subplan, type, 
@@ -363,19 +363,20 @@ col inst for 9999
 col seq for 999
 col ic for a4
 
-break on snap_time skip 1 on plan_name
+break on snap_time skip 1 on plan_name on seq skip 1
 
 prompt Resource groups consumption in last 2 days.
 
 select a.instance_number inst,
 to_char(a.end_interval_time, 'dd-mon hh24:mi:ss') snap_time,
-c.plan_name, c.instance_caging ic,
-b.sequence# seq, b.consumer_group_name cons_group,
+c.plan_name, b.sequence# seq, 
+b.consumer_group_name cons_group,
 b.requests req,
 b.cpu_waits, b.yields,
 round(b.cpu_wait_time/1000, 0) cpu_wait_time_s , 
 round(b.consumed_cpu_time/1000, 0) cons_cpu_time_s,
-b.pqs_queued, b.pqs_completed, b.pq_servers_used
+b.pqs_queued, b.pqs_completed, b.pq_servers_used,
+c.instance_caging ic
 from dba_hist_snapshot a,
 dba_hist_rsrc_consumer_group b,
 dba_hist_rsrc_plan c
@@ -385,7 +386,7 @@ and a.snap_id = b.snap_id
 and b.sequence# = c.sequence#
 and b.dbid = c.dbid and b.instance_number = c.instance_number
 and b.snap_id = c.snap_id
-order by inst, a.end_interval_time, plan_name, cons_cpu_time_s desc, req desc
+order by inst, a.end_interval_time, plan_name, seq, cons_cpu_time_s desc, req desc
 /
 
 clear breaks
@@ -526,7 +527,7 @@ col inst for 9999
 col seq for 999
 col ic for a4
 
-break on pdb skip 1 on snap_time skip 1 on plan_name
+break on pdb skip 1 on snap_time skip 1 on plan_name on seq skip 1
 
 prompt Resource groups consumption in last 2 days.
 
@@ -535,13 +536,14 @@ with pdb_names as
 from dba_hist_pdb_instance)
 select d.pdb_name pdb, a.instance_number inst,
 to_char(a.end_interval_time, 'dd-mon hh24:mi:ss') snap_time,
-c.plan_name, c.instance_caging ic,
-b.sequence# seq, b.consumer_group_name cons_group,
+c.plan_name, b.sequence# seq,
+b.consumer_group_name cons_group,
 b.requests req,
 b.cpu_waits, b.yields,
 round(b.cpu_wait_time/1000, 0) cpu_wait_time_s , 
 round(b.consumed_cpu_time/1000, 0) cons_cpu_time_s,
-b.pqs_queued, b.pqs_completed, b.pq_servers_used
+b.pqs_queued, b.pqs_completed, b.pq_servers_used,
+c.instance_caging ic
 from dba_hist_snapshot a,
 dba_hist_rsrc_consumer_group b,
 dba_hist_rsrc_plan c,
@@ -554,7 +556,7 @@ and b.dbid = c.dbid and b.instance_number = c.instance_number
 and b.snap_id = c.snap_id and b.con_id = c.con_id 
 and c.dbid = d.dbid and c.instance_number = d.instance_number
 and c.con_id = d.con_id and c.con_dbid = d.con_dbid 
-order by pdb, inst, a.end_interval_time, plan_name, cons_cpu_time_s desc, req desc
+order by pdb, inst, a.end_interval_time, plan_name, seq, cons_cpu_time_s desc, req desc
 /
 
 clear breaks
