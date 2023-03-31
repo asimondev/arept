@@ -3,7 +3,7 @@ from .database import Database
 from .templates import print_template
 from .utils import set_arept_header
 
-AREPT_VERSION = "0.3.2"
+AREPT_VERSION = "0.3.3"
 
 verbose = False
 

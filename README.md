@@ -209,6 +209,17 @@ Output directory: /home/oracle/arept/arept_output
  - File table_ANDREJ_TEST01_subpart_stats.html created.
 ```
 
+Using *--obj* option you can get details not only for the tables. For instance, you can 
+select the PL/SQL code as well. In the below example you would get the PL/SQL code 
+for the MY_FUNC01 function from the PDB acdb19a_pdb1. 
+
+```
+./arept.py --obj="source:my_func01" --pdb acdb19a_pdb1 
+Output directory: /home/oracle/arept/arept_output
+ - File /home/oracle/arept/arept_output/FUNCTION_ANDREJ_MY_FUNC01_metadata.txt created.
+ - File /home/oracle/arept/arept_output/FUNCTION_ANDREJ_MY_FUNC01.txt created.
+ - File /home/oracle/arept/arept_output/FUNCTION_ANDREJ_MY_FUNC01.html created.
+```
 ### SQL Tuning.
 
 You can use AREPT templates to generate SQL snippets for SQL*Plus to work with 

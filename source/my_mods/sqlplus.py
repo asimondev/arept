@@ -100,6 +100,7 @@ class SqlPlus:
             os.write(fd, b"set verify off\n")
 
         os.write(fd, b"set arraysize 100\n")
+        os.write(fd, b"set linesize 256\n")
         os.write(fd, bytearray(self.stmts + "\n" + "exit\n", "utf-8"))
         os.close(fd)
 

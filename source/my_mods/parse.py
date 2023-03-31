@@ -470,6 +470,12 @@ class ProgArgs:
             sys.exit(1)
 
     def check_instances(self):
+        if (not self.rt_perfhub_session and not self.awr_perfhub_session and
+                    self.params['instance_number'] is not None):
+            print("Error: instance option is only used for performance hub "
+                  "session reports. Did you wanted to used instances options instead?")
+            sys.exit(1)
+
         if not self.instances:
             return
 

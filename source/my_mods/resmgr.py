@@ -233,7 +233,7 @@ where consumer_group in (%s)
 order by consumer_group
 /
 
-col attribute for a22
+col attribute for a27
 col value for a30
 
 select consumer_group, attribute, value
